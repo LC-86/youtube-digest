@@ -31,7 +31,7 @@ const FAKE_TOKENS = {
   account_id: "acct-test",
 };
 
-function createHostDeps({ credentials = null } = {}) {
+function createHostDeps({ credentials = null, fetchImpl = null } = {}) {
   const stateDir = makeStateDir();
   return {
     authState: authStateModule.createAuthState({ dir: stateDir }),
@@ -40,9 +40,38 @@ function createHostDeps({ credentials = null } = {}) {
       save: async () => {},
       remove: async () => true,
     },
+    fetchImpl,
     spawnAuthWorker() {},
     now: () => 1_000_000,
   };
+}
+
+const LIVE_PAYLOAD = {
+  models: [
+    { slug: "gpt-5.6-sol", label: "GPT-5.6-Sol" },
+    { slug: "gpt-5.6-terra", label: "GPT-5.6-Terra" },
+    { slug: "codex-auto-review", label: "Codex Auto Review" },
+    { slug: "gpt-5.6-luna", label: "GPT-5.6-Luna" },
+    { slug: "bad slug!", label: "Nope" },
+    { slug: "gpt-5.6-luna", label: "Duplicate" },
+  ],
+};
+
+function createLiveFetch({ payload = LIVE_PAYLOAD, status = 200 } = {}) {
+  const calls = [];
+  const fetchImpl = async (url, init = {}) => {
+    calls.push({ url, headers: { ...init.headers } });
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      async json() {
+        if (typeof payload === "string") throw new Error("invalid json");
+        return payload;
+      },
+    };
+  };
+  fetchImpl.calls = calls;
+  return fetchImpl;
 }
 
 async function call(request, deps = createHostDeps()) {
@@ -134,6 +163,130 @@ test("models.list works regardless of the account phase", async () => {
     assert.equal(response.ok, true);
     assert.ok(response.models.length > 0);
   }
+});
+
+test("fetchLiveCatalog sanitizes the live model list", async () => {
+  const fetchImpl = createLiveFetch();
+
+  const catalog = await modelsModule.fetchLiveCatalog({
+    fetchImpl,
+    tokens: FAKE_TOKENS,
+  });
+
+  assert.deepEqual(catalog, [
+    { id: "gpt-5.6-sol", label: "GPT-5.6-Sol" },
+    { id: "gpt-5.6-terra", label: "GPT-5.6-Terra" },
+    { id: "gpt-5.6-luna", label: "GPT-5.6-Luna" },
+  ]);
+  assert.equal(fetchImpl.calls.length, 1);
+  assert.match(fetchImpl.calls[0].url, /\/backend-api\/codex\/models\?client_version=/);
+  assert.equal(
+    fetchImpl.calls[0].headers.authorization,
+    `Bearer ${FAKE_TOKENS.access_token}`,
+  );
+  assert.equal(
+    fetchImpl.calls[0].headers["chatgpt-account-id"],
+    FAKE_TOKENS.account_id,
+  );
+});
+
+test("fetchLiveCatalog returns null for every failure mode", async () => {
+  const cases = [
+    createLiveFetch({ payload: "not-json" }),
+    createLiveFetch({ payload: { models: [] } }),
+    createLiveFetch({ payload: {} }),
+    createLiveFetch({ status: 500 }),
+    createLiveFetch({ status: 401 }),
+    async () => {
+      throw new Error("network down");
+    },
+  ];
+  for (const fetchImpl of cases) {
+    assert.equal(
+      await modelsModule.fetchLiveCatalog({ fetchImpl, tokens: FAKE_TOKENS }),
+      null,
+    );
+  }
+  assert.equal(
+    await modelsModule.fetchLiveCatalog({ fetchImpl: null, tokens: FAKE_TOKENS }),
+    null,
+  );
+  assert.equal(
+    await modelsModule.fetchLiveCatalog({
+      fetchImpl: createLiveFetch(),
+      tokens: { refresh_token: "rt" },
+    }),
+    null,
+  );
+});
+
+test("models.list prefers the live catalog and keeps the default model", async () => {
+  const deps = createHostDeps({
+    credentials: JSON.stringify(FAKE_TOKENS),
+    fetchImpl: createLiveFetch(),
+  });
+
+  const response = await call({ v: 1, type: "models.list" }, deps);
+
+  assert.equal(response.ok, true);
+  assert.deepEqual(response.models, [
+    { id: "gpt-5.6-sol", label: "GPT-5.6-Sol" },
+    { id: "gpt-5.6-terra", label: "GPT-5.6-Terra" },
+    { id: "gpt-5.6-luna", label: "GPT-5.6-Luna" },
+  ]);
+  assert.equal(response.defaultModel, modelsModule.DEFAULT_MODEL_ID);
+  const serialized = JSON.stringify(response);
+  assert.ok(!serialized.includes("at-test"));
+  assert.ok(!serialized.includes("acct-test"));
+});
+
+test("models.list falls back to the static catalog when the live fetch fails", async () => {
+  const failing = createHostDeps({
+    credentials: JSON.stringify(FAKE_TOKENS),
+    fetchImpl: async () => {
+      throw new Error("network down");
+    },
+  });
+  const empty = createHostDeps({
+    credentials: JSON.stringify(FAKE_TOKENS),
+    fetchImpl: createLiveFetch({ payload: { models: [] } }),
+  });
+  const signedOut = createHostDeps({ fetchImpl: createLiveFetch() });
+
+  for (const deps of [failing, empty, signedOut]) {
+    const response = await call({ v: 1, type: "models.list" }, deps);
+    assert.equal(response.ok, true);
+    assert.deepEqual(
+      response.models,
+      modelsModule.CATALOG.map((model) => ({ ...model })),
+    );
+    assert.equal(response.defaultModel, modelsModule.DEFAULT_MODEL_ID);
+  }
+  // Signed-out must not even attempt the authenticated fetch.
+  assert.equal(signedOut.fetchImpl.calls.length, 0);
+});
+
+test("models.validate accepts a live-only model while connected", async () => {
+  const deps = createHostDeps({
+    credentials: JSON.stringify(FAKE_TOKENS),
+    fetchImpl: createLiveFetch({
+      payload: { models: [{ slug: "gpt-5.6-sol", label: "GPT-5.6-Sol" }] },
+    }),
+  });
+
+  const liveOnly = await call(
+    { v: 1, type: "models.validate", model: "gpt-5.6-sol" },
+    deps,
+  );
+  assert.equal(liveOnly.ok, true);
+  assert.deepEqual(liveOnly.model, { id: "gpt-5.6-sol", label: "GPT-5.6-Sol" });
+
+  const stillUnknown = await call(
+    { v: 1, type: "models.validate", model: "gpt-99-future" },
+    deps,
+  );
+  assert.equal(stillUnknown.ok, false);
+  assert.equal(stillUnknown.error, "model-unavailable");
 });
 
 test("models.validate confirms catalog models and types every rejection", async () => {

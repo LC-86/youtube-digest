@@ -373,7 +373,10 @@ function createCompletionService({
 
   async function runCompletion({ model, messages, maxTokens }) {
     const { instructions, input } = normalizeMessages(messages);
-    const outputTokens = normalizeMaxTokens(maxTokens);
+    // The requested bound still validates the extension's request, but the
+    // current Codex model family rejects a forwarded max_output_tokens with
+    // a 400, so it is never sent to the provider.
+    normalizeMaxTokens(maxTokens);
     if (typeof model !== "string" || !model) {
       throw completionError("invalid-request");
     }
@@ -400,7 +403,6 @@ function createCompletionService({
       store: false,
     };
     if (instructions) body.instructions = instructions;
-    if (outputTokens) body.max_output_tokens = outputTokens;
 
     let response = await postCompletion(tokens, body);
     if (response.status === 401) {

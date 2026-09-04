@@ -84,6 +84,59 @@ function createDefaultDeps() {
   };
 }
 
+// Loads the stored credential as token fields for authenticated catalog
+// fetches. Every failure collapses to null: the caller falls back to the
+// static catalog rather than branching on keychain error types.
+async function loadCatalogTokens(deps) {
+  try {
+    const credentials = await deps.keychain.load();
+    if (typeof credentials !== "string" || !credentials) return null;
+    const tokens = JSON.parse(credentials);
+    return typeof tokens?.access_token === "string" && tokens.access_token
+      ? tokens
+      : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+// The live catalog wins when the account can fetch it, so new model families
+// appear without a companion update; otherwise the frozen fallback answers.
+async function resolveCatalog(deps) {
+  try {
+    const tokens = await loadCatalogTokens(deps);
+    if (tokens) {
+      const live = await models.fetchLiveCatalog({ fetchImpl: deps.fetchImpl, tokens });
+      if (live) {
+        return {
+          models: live,
+          defaultModel: live.some((model) => model.id === models.DEFAULT_MODEL_ID)
+            ? models.DEFAULT_MODEL_ID
+            : live[0].id,
+        };
+      }
+    }
+  } catch (_error) {
+    // Fall through to the static catalog.
+  }
+  return {
+    models: models.CATALOG.map((model) => ({ ...model })),
+    defaultModel: models.DEFAULT_MODEL_ID,
+  };
+}
+
+// Membership check that accepts both the static catalog and, while
+// connected, the live catalog. Returns the {id, label} entry or null.
+async function findModelAnywhere(deps, id) {
+  const local = models.findModel(id);
+  if (local) return local;
+  const tokens = await loadCatalogTokens(deps);
+  if (!tokens) return null;
+  const live = await models.fetchLiveCatalog({ fetchImpl: deps.fetchImpl, tokens });
+  const entry = live?.find((model) => model.id === id) ?? null;
+  return entry ? { id: entry.id, label: entry.label } : null;
+}
+
 // Builds the accountLabel shown in Settings. The raw email stays inside the
 // companion; only the masked form ever leaves.
 function accountLabelFromCredentials(credentials) {
@@ -309,12 +362,13 @@ async function handleRequest(request, deps = createDefaultDeps()) {
     return handleDisconnect(deps);
   }
   if (request.type === "models.list") {
+    const catalog = await resolveCatalog(deps);
     return {
       v: request.v,
       ok: true,
       type: "models.list",
-      models: models.CATALOG.map((model) => ({ ...model })),
-      defaultModel: models.DEFAULT_MODEL_ID,
+      models: catalog.models,
+      defaultModel: catalog.defaultModel,
     };
   }
   if (request.type === "models.validate") {
@@ -324,19 +378,21 @@ async function handleRequest(request, deps = createDefaultDeps()) {
     if (!models.isValidModelId(request.model)) {
       return errorResponse("invalid-request");
     }
-    const model = models.findModel(request.model);
+    const model = await findModelAnywhere(deps, request.model);
     if (!model) return errorResponse("model-unavailable");
     return { v: request.v, ok: true, type: "models.validate", model };
   }
   if (request.type === "completion.create") {
     // Catalog membership is enforced host-side so an unknown model fails
-    // before any credential is touched. Only the typed text field is ever
-    // copied into the reply, so provider payloads cannot smuggle extra
-    // fields (let alone credentials) back to the extension.
+    // before any credential is touched; the check accepts the static and
+    // live catalogs so newly shipped models work without a companion
+    // update. Only the typed text field is ever copied into the reply, so
+    // provider payloads cannot smuggle extra fields (let alone credentials)
+    // back to the extension.
     if (!models.isValidModelId(request.model)) {
       return errorResponse("invalid-request");
     }
-    if (!models.findModel(request.model)) {
+    if (!(await findModelAnywhere(deps, request.model))) {
       return errorResponse("model-unavailable");
     }
     try {

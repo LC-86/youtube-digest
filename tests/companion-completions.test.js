@@ -177,7 +177,7 @@ test("completion service posts the prompt pair to the Codex responses endpoint",
   });
 
   const text = await service.runCompletion({
-    model: "gpt-5.3-codex",
+    model: modelsModule.DEFAULT_MODEL_ID,
     messages: MESSAGES,
     maxTokens: 8192,
   });
@@ -191,7 +191,7 @@ test("completion service posts the prompt pair to the Codex responses endpoint",
   assert.equal(options.headers["chatgpt-account-id"], "acct-1");
 
   const body = JSON.parse(options.body);
-  assert.equal(body.model, "gpt-5.3-codex");
+  assert.equal(body.model, modelsModule.DEFAULT_MODEL_ID);
   assert.equal(body.instructions, "Summarize the transcript as JSON.");
   assert.deepEqual(body.input, [
     {
@@ -200,7 +200,9 @@ test("completion service posts the prompt pair to the Codex responses endpoint",
       content: [{ type: "input_text", text: "[0:00] Hello world" }],
     },
   ]);
-  assert.equal(body.max_output_tokens, 8192);
+  // The current Codex model family rejects the parameter outright, so the
+  // requested bound is validated but never forwarded to the provider.
+  assert.equal("max_output_tokens" in body, false);
   assert.equal(body.stream, true);
   assert.equal(body.store, false);
   assert.equal(Object.keys(body).includes("originator"), false);
@@ -262,7 +264,7 @@ test("a rejected access token refreshes once, re-stores the credential, and retr
   });
 
   const text = await service.runCompletion({
-    model: "gpt-5.3-codex",
+    model: modelsModule.DEFAULT_MODEL_ID,
     messages: MESSAGES,
   });
 
@@ -305,7 +307,7 @@ test("a rejected refresh marks reconnect-required and later requests fail fast",
   });
 
   await assert.rejects(
-    service.runCompletion({ model: "gpt-5.3-codex", messages: MESSAGES }),
+    service.runCompletion({ model: modelsModule.DEFAULT_MODEL_ID, messages: MESSAGES }),
     (error) => error.code === "reconnect-required",
   );
   assert.equal(authState.read().phase, "reconnect-required");
@@ -313,7 +315,7 @@ test("a rejected refresh marks reconnect-required and later requests fail fast",
   assert.ok(callsAfterFailure >= 2, "one provider call plus one refresh attempt");
 
   await assert.rejects(
-    service.runCompletion({ model: "gpt-5.3-codex", messages: MESSAGES }),
+    service.runCompletion({ model: modelsModule.DEFAULT_MODEL_ID, messages: MESSAGES }),
     (error) => error.code === "reconnect-required",
   );
   assert.equal(
@@ -335,7 +337,7 @@ test("provider failures map to typed completion errors", async () => {
       fetchImpl: async () => jsonResponse(payload, { ok: false, status }),
     });
     await assert.rejects(
-      service.runCompletion({ model: "gpt-5.3-codex", messages: MESSAGES }),
+      service.runCompletion({ model: modelsModule.DEFAULT_MODEL_ID, messages: MESSAGES }),
       (error) => error.code === expectedCode,
       `HTTP ${status} should map to ${expectedCode}`,
     );
@@ -351,7 +353,7 @@ test("SSE failure events become provider errors without leaking tokens", async (
   });
 
   await assert.rejects(
-    service.runCompletion({ model: "gpt-5.3-codex", messages: MESSAGES }),
+    service.runCompletion({ model: modelsModule.DEFAULT_MODEL_ID, messages: MESSAGES }),
     (error) => error.code === "provider-error" && !error.message.includes("at-good"),
   );
 });
@@ -366,7 +368,7 @@ test("an aborted provider request reports a typed timeout", async () => {
   });
 
   await assert.rejects(
-    service.runCompletion({ model: "gpt-5.3-codex", messages: MESSAGES }),
+    service.runCompletion({ model: modelsModule.DEFAULT_MODEL_ID, messages: MESSAGES }),
     (error) => error.code === "provider-timeout",
   );
 });
@@ -376,7 +378,7 @@ test("empty and oversized completions are typed failures", async () => {
     fetchImpl: async () => sseResponse([{ type: "response.completed", response: { output: [] } }, "[DONE]"]),
   });
   await assert.rejects(
-    empty.runCompletion({ model: "gpt-5.3-codex", messages: MESSAGES }),
+    empty.runCompletion({ model: modelsModule.DEFAULT_MODEL_ID, messages: MESSAGES }),
     (error) => error.code === "empty-response",
   );
 
@@ -385,7 +387,7 @@ test("empty and oversized completions are typed failures", async () => {
       sseResponse(completedSse("x".repeat(completionsModule.COMPLETIONS.MAX_TEXT_CHARS + 1))),
   });
   await assert.rejects(
-    tooLarge.runCompletion({ model: "gpt-5.3-codex", messages: MESSAGES }),
+    tooLarge.runCompletion({ model: modelsModule.DEFAULT_MODEL_ID, messages: MESSAGES }),
     (error) => error.code === "response-too-large",
   );
 });
@@ -398,7 +400,7 @@ test("credential problems map to signed-out and reconnect-required", async () =>
     },
   });
   await assert.rejects(
-    signedOut.runCompletion({ model: "gpt-5.3-codex", messages: MESSAGES }),
+    signedOut.runCompletion({ model: modelsModule.DEFAULT_MODEL_ID, messages: MESSAGES }),
     (error) => error.code === "signed-out",
   );
 
@@ -410,7 +412,7 @@ test("credential problems map to signed-out and reconnect-required", async () =>
     },
   });
   await assert.rejects(
-    corrupt.runCompletion({ model: "gpt-5.3-codex", messages: MESSAGES }),
+    corrupt.runCompletion({ model: modelsModule.DEFAULT_MODEL_ID, messages: MESSAGES }),
     (error) => error.code === "reconnect-required",
   );
   // The corrupt credential is classified, not silently signed out.
@@ -442,7 +444,7 @@ test("request validation rejects bad messages, models, and token budgets", async
   ];
   for (const messages of invalidMessages) {
     await assert.rejects(
-      service.runCompletion({ model: "gpt-5.3-codex", messages }),
+      service.runCompletion({ model: modelsModule.DEFAULT_MODEL_ID, messages }),
       (error) =>
         error.code === "invalid-request" || error.code === "request-too-large",
       JSON.stringify(messages?.length),
@@ -452,7 +454,7 @@ test("request validation rejects bad messages, models, and token budgets", async
   for (const maxTokens of [0, -1, 1.5, "8192", 99_999]) {
     await assert.rejects(
       service.runCompletion({
-        model: "gpt-5.3-codex",
+        model: modelsModule.DEFAULT_MODEL_ID,
         messages: MESSAGES,
         maxTokens,
       }),
@@ -517,7 +519,7 @@ function createHostDeps({ completionsBehavior } = {}) {
 test("completion.create converts the request and whitelists the reply", async () => {
   const deps = createHostDeps({
     completionsBehavior: (request) => {
-      assert.equal(request.model, "gpt-5.3-codex");
+      assert.equal(request.model, modelsModule.DEFAULT_MODEL_ID);
       assert.deepEqual(request.messages, MESSAGES);
       assert.equal(request.maxTokens, 8192);
       return '{"chapters":[{"title":"Intro"}]}';
@@ -528,7 +530,7 @@ test("completion.create converts the request and whitelists the reply", async ()
     {
       v: 1,
       type: "completion.create",
-      model: "gpt-5.3-codex",
+      model: modelsModule.DEFAULT_MODEL_ID,
       messages: MESSAGES,
       maxTokens: 8192,
     },
@@ -569,7 +571,7 @@ test("completion.create gates the model before touching credentials", async () =
 test("typed service failures cross the contract and unknown errors become host-error", async () => {
   const deps = createHostDeps({ completionsBehavior: { error: "entitlement-denied" } });
   const response = await host.handleRequest(
-    { v: 1, type: "completion.create", model: "gpt-5.3-codex", messages: MESSAGES },
+    { v: 1, type: "completion.create", model: modelsModule.DEFAULT_MODEL_ID, messages: MESSAGES },
     deps,
   );
   assert.equal(response.ok, false);
@@ -581,7 +583,7 @@ test("typed service failures cross the contract and unknown errors become host-e
     },
   });
   const crashed = await host.handleRequest(
-    { v: 1, type: "completion.create", model: "gpt-5.3-codex", messages: MESSAGES },
+    { v: 1, type: "completion.create", model: modelsModule.DEFAULT_MODEL_ID, messages: MESSAGES },
     unexpected,
   );
   assert.equal(crashed.ok, false);
@@ -611,7 +613,7 @@ test("failed completions keep transcript content out of logs, state, and replies
   });
 
   await assert.rejects(
-    service.runCompletion({ model: "gpt-5.3-codex", messages }),
+    service.runCompletion({ model: modelsModule.DEFAULT_MODEL_ID, messages }),
     (error) => error.code === "provider-error",
   );
   assert.equal(logged.join("\n").includes(canary), false);
@@ -621,7 +623,7 @@ test("failed completions keep transcript content out of logs, state, and replies
   deps.authState = authState;
   deps.completions = service;
   const response = await host.handleRequest(
-    { v: 1, type: "completion.create", model: "gpt-5.3-codex", messages },
+    { v: 1, type: "completion.create", model: modelsModule.DEFAULT_MODEL_ID, messages },
     deps,
   );
   assert.equal(response.ok, false);
@@ -692,7 +694,7 @@ test("abortActive cancels an in-flight provider request", async () => {
   });
 
   const pending = service.runCompletion({
-    model: "gpt-5.3-codex",
+    model: modelsModule.DEFAULT_MODEL_ID,
     messages: MESSAGES,
   });
   const assertion = assert.rejects(
@@ -720,7 +722,7 @@ test("a transient refresh failure stays retryable and keeps the account connecte
   });
 
   await assert.rejects(
-    service.runCompletion({ model: "gpt-5.3-codex", messages: MESSAGES }),
+    service.runCompletion({ model: modelsModule.DEFAULT_MODEL_ID, messages: MESSAGES }),
     (error) => error.code === "provider-error",
   );
   assert.equal(authState.read(), null, "no reconnect marker was written");
@@ -734,7 +736,7 @@ test("a transient refresh failure stays retryable and keeps the account connecte
     log: () => {},
   });
   const text = await recovered.runCompletion({
-    model: "gpt-5.3-codex",
+    model: modelsModule.DEFAULT_MODEL_ID,
     messages: MESSAGES,
   });
   assert.equal(text, '{"back":true}');
@@ -747,7 +749,7 @@ test("host gates oversized completions by byte length, not char count", async ()
   const deps = createHostDeps({ completionsBehavior: { text: cjk } });
 
   const response = await host.handleRequest(
-    { v: 1, type: "completion.create", model: "gpt-5.3-codex", messages: MESSAGES },
+    { v: 1, type: "completion.create", model: modelsModule.DEFAULT_MODEL_ID, messages: MESSAGES },
     deps,
   );
 
@@ -780,7 +782,7 @@ test("contract sends one completion.create and whitelists the reply text", async
 
   const result = await companion.requestCompletion({
     runtime,
-    model: "gpt-5.3-codex",
+    model: modelsModule.DEFAULT_MODEL_ID,
     messages: MESSAGES,
     maxTokens: 8192,
   });
@@ -792,7 +794,7 @@ test("contract sends one completion.create and whitelists the reply text", async
       message: {
         v: 1,
         type: "completion.create",
-        model: "gpt-5.3-codex",
+        model: modelsModule.DEFAULT_MODEL_ID,
         messages: MESSAGES,
         maxTokens: 8192,
       },
@@ -857,21 +859,21 @@ test("contract surfaces typed provider failures and transport timeouts", async (
     runtime: createRuntime({
       response: { v: 1, ok: false, error: "entitlement-denied" },
     }),
-    model: "gpt-5.3-codex",
+    model: modelsModule.DEFAULT_MODEL_ID,
     messages: MESSAGES,
   });
   assert.deepEqual(entitlement, { ok: false, reason: "entitlement-denied" });
 
   const outdated = await companion.requestCompletion({
     runtime: createRuntime({ response: { v: 2, ok: false } }),
-    model: "gpt-5.3-codex",
+    model: modelsModule.DEFAULT_MODEL_ID,
     messages: MESSAGES,
   });
   assert.deepEqual(outdated, { ok: false, reason: "protocol-unsupported" });
 
   const silent = await companion.requestCompletion({
     runtime: createRuntime({ neverRespond: true }),
-    model: "gpt-5.3-codex",
+    model: modelsModule.DEFAULT_MODEL_ID,
     messages: MESSAGES,
     timeoutMs: 10,
   });
