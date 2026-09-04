@@ -418,6 +418,32 @@ button.danger {
   margin-top: 16px;
 }
 
+.companion-account {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.companion-account[hidden] {
+  display: none;
+}
+
+.companion-account[data-account-phase="connected"] .account-badge {
+  background: #e6efe2;
+  color: #41633a;
+}
+
+.companion-account[data-account-phase="authorizing"] .account-badge,
+.companion-account[data-account-phase="unsupported"] .account-badge {
+  background: #f7ecd7;
+  color: #7a5b1e;
+}
+
+.companion-account[data-account-phase="reconnect-required"] .account-badge {
+  background: #f7e2df;
+  color: #8a3330;
+}
+
 footer {
   margin-top: 28px;
   color: var(--muted);

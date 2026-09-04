@@ -48,6 +48,8 @@ test("status contract reports ready for a compatible companion", async () => {
       status: "ready",
       protocol: 1,
       companionVersion: "1.2.0",
+      capabilities: ["status", "auth"],
+      auth: { phase: "signed-out" },
     },
   });
 
@@ -57,6 +59,9 @@ test("status contract reports ready for a compatible companion", async () => {
     state: "ready",
     protocol: 1,
     hostVersion: "1.2.0",
+    capabilities: ["status", "auth"],
+    authSupported: true,
+    auth: { phase: "signed-out" },
   });
   assert.deepEqual(runtime.calls, [
     { hostName: companion.HOST_NAME, message: { v: 1, type: "status" } },
@@ -170,7 +175,14 @@ test("host manifest accepts only the pinned stable extension identity", () => {
 });
 
 test("host speaks the framed status contract over stdio", async () => {
-  const child = spawn(process.execPath, [path.join(root, "companion", "host.js")]);
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "ytd-companion-stdio-"));
+  const child = spawn(process.execPath, [path.join(root, "companion", "host.js")], {
+    env: {
+      ...process.env,
+      YTD_COMPANION_STATE_DIR: stateDir,
+      YTD_COMPANION_KEYCHAIN_SERVICE: `com.youtube_digest.test.${Date.now()}`,
+    },
+  });
   try {
     const stdout = await new Promise((resolve, reject) => {
       const chunks = [];
@@ -179,7 +191,7 @@ test("host speaks the framed status contract over stdio", async () => {
       child.stdin.on("error", reject);
       const timer = setTimeout(
         () => reject(new Error("host did not answer in time")),
-        5000,
+        10000,
       );
       child.stdout.on("close", () => {
         clearTimeout(timer);
@@ -196,27 +208,29 @@ test("host speaks the framed status contract over stdio", async () => {
     assert.equal(response.status, "ready");
     assert.equal(response.protocol, 1);
     assert.match(response.companionVersion, /^\d+\.\d+\.\d+$/);
-    assert.ok(response.capabilities.includes("status"));
+    assert.deepEqual(response.capabilities, ["status", "auth"]);
+    assert.equal(response.auth.phase, "signed-out");
   } finally {
     child.kill();
+    fs.rmSync(stateDir, { recursive: true, force: true });
   }
 });
 
-test("host rejects unsupported protocol versions with a typed error", () => {
-  const response = host.handleRequest({ v: 99, type: "status" });
+test("host rejects unsupported protocol versions with a typed error", async () => {
+  const response = await host.handleRequest({ v: 99, type: "status" });
 
   assert.equal(response.ok, false);
   assert.equal(response.error, "unsupported-protocol");
   assert.equal(response.found, 99);
 });
 
-test("host rejects unknown request types and non-object messages", () => {
+test("host rejects unknown request types and non-object messages", async () => {
   assert.equal(
-    host.handleRequest({ v: 1, type: "catalog" }).error,
+    (await host.handleRequest({ v: 1, type: "catalog" })).error,
     "unknown-request-type",
   );
-  assert.equal(host.handleRequest(null).error, "invalid-request");
-  assert.equal(host.handleRequest("status").error, "invalid-request");
+  assert.equal((await host.handleRequest(null)).error, "invalid-request");
+  assert.equal((await host.handleRequest("status")).error, "invalid-request");
 });
 
 test("host frame reader rejects oversized inbound messages", () => {

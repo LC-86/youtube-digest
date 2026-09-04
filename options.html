@@ -170,6 +170,40 @@
             </li>
           </ol>
         </div>
+        <div id="companionAccount" class="companion-account" hidden>
+          <p class="companion-status-line">
+            <span class="companion-badge account-badge" id="accountBadge"
+              >Not signed in</span
+            >
+            <span
+              class="companion-detail"
+              id="accountDetail"
+              role="status"
+              aria-live="polite"
+            ></span>
+          </p>
+          <p class="help" data-i18n="companionAuthPrivacy">
+            Signing in opens chatgpt.com in your browser. YouTube Digest never
+            sees your password, authorization code, or tokens.
+          </p>
+          <div class="companion-actions">
+            <button id="companionConnectBtn" type="button" hidden>
+              Sign in with ChatGPT
+            </button>
+            <button id="companionCancelAuthBtn" type="button" hidden>
+              Cancel authorization
+            </button>
+            <button
+              id="companionDisconnectBtn"
+              type="button"
+              class="danger"
+              hidden
+            >
+              Disconnect
+            </button>
+            <span id="accountActionStatus" role="status" aria-live="polite"></span>
+          </div>
+        </div>
         <div class="companion-actions">
           <button
             id="companionCheckBtn"

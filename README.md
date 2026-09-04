@@ -101,7 +101,7 @@ Keys and settings are stored in Chrome's local extension storage on your device.
 
 YouTube Digest can also work with a ChatGPT / Codex subscription instead of a DeepSeek API key. The connection runs through a small companion app that lives on your Mac, and the extension talks to it only through Chrome Native Messaging. You never enter an OpenAI API key, token, or password in the extension.
 
-This update installs the groundwork. Settings can confirm that the companion is present, compatible, and reachable; signing in with your ChatGPT account arrives in a following update. Until then, AI features continue to use DeepSeek.
+This update adds account sign-in. Settings can confirm that the companion is present, compatible, and reachable, and once it is Ready you can sign in with your ChatGPT account. Using the connection for AI features arrives in a following update; until then, they continue to use DeepSeek.
 
 ### Install the companion
 
@@ -122,6 +122,25 @@ The companion card in Settings then shows one of three states:
 
 The installer registers the companion for your default Chrome profile only. The companion accepts connections only from YouTube Digest's fixed extension identity, which is pinned in `manifest.json`. Updating from an earlier version: the extension now keeps this fixed identity, so Chrome treats the reloaded extension as new and you must re-enter your Supadata and DeepSeek keys once.
 
+### Sign in with your ChatGPT account
+
+When the companion is Ready, its card offers **Sign in with ChatGPT**:
+
+1. Select **Sign in with ChatGPT**. The companion opens the ChatGPT authorization page in your browser; sign in with your own account and approve the request.
+2. Settings shows **Authorizing** while it waits. The page updates on its own, so you can keep it open.
+3. After you approve, Settings shows **Connected** with a masked account label.
+
+The authorization uses the same browser-based ChatGPT sign-in as OpenAI's Codex CLI, with a loopback redirect on your Mac. The companion owns the whole flow: the extension never receives the authorization URL, the authorization code, or any token, and it stores no account credential. The sign-in credential (the refresh token) is saved only in this Mac's Keychain.
+
+Recovery is explicit:
+
+- **Cancel authorization** stops a pending sign-in.
+- An abandoned authorization expires after ten minutes; Settings then explains this and offers sign-in again. A denied authorization is reported the same way.
+- **Reconnect required** means the stored sign-in stopped working, for example after a password change. Sign in again, or disconnect.
+- **Disconnect** deletes the stored credential from your Keychain and returns the card to Not signed in. Resetting extension data in Chrome does not remove this credential, because the Keychain entry belongs to the companion, not the extension; use Disconnect instead.
+
+Model selection and AI requests through the connection arrive in a following update.
+
 ## Use YouTube Digest
 
 1. Open a standard YouTube watch page with captions.
@@ -140,7 +159,7 @@ The installer registers the companion for your default Chrome profile only. The 
 - AI overviews, selected-text explanations, translation, and automatic note polishing.
 - Local notes and a local cache for recent transcript and digest results.
 - DeepSeek V4 Flash for all published AI features. Other providers require a local code adaptation and are not supported by this published version.
-- An optional macOS companion for ChatGPT / Codex can be installed; Settings shows whether it is Ready, Unavailable, or Incompatible. Signing in and AI requests through it arrive in a following update.
+- An optional macOS companion for ChatGPT / Codex can be installed; Settings shows whether it is Ready, Unavailable, or Incompatible, and when Ready you can sign in with your ChatGPT account, cancel, reconnect, or disconnect it. AI requests through the connection arrive in a following update.
 
 Shorts, live streams, private or access-restricted videos, and videos without an available native transcript may not work. Firefox, Safari, mobile browsers, and other Chromium browsers are not currently tested or supported.
 

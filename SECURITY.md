@@ -29,6 +29,7 @@ Examples include:
 - script or HTML injection through transcript, metadata, service errors, or model output;
 - access to browsing data outside the documented YouTube scope;
 - unintended transmission of notes, transcripts, or credentials;
+- leaks of ChatGPT / Codex OAuth codes, tokens, or account identifiers from the local companion into the extension, logs, or its state files;
 - a dependency or release-workflow compromise; and
 - bypasses of local data deletion or DeepSeek configuration controls.
 
@@ -40,5 +41,6 @@ Examples include:
 - Do not reuse keys from production systems.
 - Revoke keys immediately if a device, browser profile, ZIP, log, or screenshot exposes them.
 - Remember that Chrome local extension storage is not an encrypted password vault.
+- The optional companion stores your ChatGPT / Codex sign-in credential only in the macOS Keychain and never returns it to the extension. Use Disconnect in Settings to delete it; resetting extension data does not. Treat the credential like a password: disconnect and sign in again if you suspect this Mac was compromised.
 
 The release tooling uses an explicit file allowlist and scans public files for common credential patterns, but automated checks cannot detect every secret.

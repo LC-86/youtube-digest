@@ -57,6 +57,40 @@ const YTD_OPTIONS = (() => {
       companionStepReload:
         "Reload the unpacked extension at chrome://extensions, reopen Settings, and check again.",
       companionCheckAgain: "Check again",
+      companionAccountSignedOutBadge: "Not signed in",
+      companionAccountAuthorizingBadge: "Authorizing",
+      companionAccountConnectedBadge: "Connected",
+      companionAccountReconnectBadge: "Reconnect required",
+      companionAccountUpdateBadge: "Update needed",
+      companionAccountSignedOutDetail:
+        "Sign in to use your ChatGPT / Codex subscription with YouTube Digest.",
+      companionAccountAuthorizingDetail:
+        "Finish signing in in the browser window that opened. This page updates automatically, so you can keep it open.",
+      companionAccountConnectedDetail: ({ label }) =>
+        `Signed in${label ? ` as ${label}` : ""}. The sign-in credential stays in this Mac's Keychain; the extension never receives tokens. Resetting extension data does not remove it; use Disconnect to delete it.`,
+      companionAccountReconnectDetail:
+        "The stored sign-in is no longer valid. Reconnect to sign in again, or disconnect to remove the stored credential.",
+      companionAuthUnsupportedDetail:
+        "The installed companion does not support signing in yet. Update it by re-running the installer from the latest YouTube Digest folder, then check again.",
+      companionOutcomeExpired:
+        "The previous authorization expired before it finished. Select Sign in with ChatGPT to try again.",
+      companionOutcomeDenied:
+        "The previous authorization was denied. Select Sign in with ChatGPT to try again.",
+      companionOutcomeCancelled: "Authorization was cancelled.",
+      companionOutcomeStateMismatch:
+        "The previous authorization could not be verified and was discarded. Try again.",
+      companionOutcomeError:
+        "The previous authorization failed. Try again, and update the companion if it keeps failing.",
+      companionConnect: "Sign in with ChatGPT",
+      companionReconnect: "Reconnect",
+      companionCancelAuth: "Cancel authorization",
+      companionDisconnect: "Disconnect",
+      companionDisconnectConfirm:
+        "Disconnect your ChatGPT / Codex account and delete its credential from this Mac's Keychain?",
+      companionAuthPrivacy:
+        "Signing in opens chatgpt.com in your browser. YouTube Digest never sees your password, authorization code, or tokens.",
+      companionActionFailed:
+        "That action did not complete. Check the companion status, then try again.",
       localRemix: "Local remix",
       customizationTitle: "Want to use another AI model?",
       customizationPurpose: "Edit and copy a safe prompt for your coding agent",
@@ -155,6 +189,37 @@ const YTD_OPTIONS = (() => {
       companionStepReload:
         "在 chrome://extensions 重新加载已解压的扩展，重新打开设置页，再检查一次。",
       companionCheckAgain: "再检查一次",
+      companionAccountSignedOutBadge: "未登录",
+      companionAccountAuthorizingBadge: "正在授权",
+      companionAccountConnectedBadge: "已连接",
+      companionAccountReconnectBadge: "需要重新连接",
+      companionAccountUpdateBadge: "需要更新",
+      companionAccountSignedOutDetail:
+        "登录后即可在 YouTube Digest 中使用你的 ChatGPT / Codex 订阅。",
+      companionAccountAuthorizingDetail:
+        "请在已打开的浏览器窗口中完成登录。本页面会自动更新，可以保持打开。",
+      companionAccountConnectedDetail: ({ label }) =>
+        `已登录${label ? `（账号 ${label}）` : ""}。登录凭据只保存在这台 Mac 的钥匙串中，扩展不会收到任何令牌。重置扩展数据不会删除它；如需删除请使用断开连接。`,
+      companionAccountReconnectDetail:
+        "已保存的登录已失效。请重新连接再次登录，或断开连接以删除已保存的凭据。",
+      companionAuthUnsupportedDetail:
+        "已安装的伴侣还不支持登录。请在最新的 YouTube Digest 文件夹重新运行安装脚本进行更新，然后再检查一次。",
+      companionOutcomeExpired:
+        "上次授权在完成前已过期。请再次点击「使用 ChatGPT 登录」重试。",
+      companionOutcomeDenied: "上次授权被拒绝。请再次点击「使用 ChatGPT 登录」重试。",
+      companionOutcomeCancelled: "授权已取消。",
+      companionOutcomeStateMismatch: "上次授权未能通过校验，已被放弃。请重试。",
+      companionOutcomeError:
+        "上次授权失败。请重试；如果继续失败，请更新本地伴侣。",
+      companionConnect: "使用 ChatGPT 登录",
+      companionReconnect: "重新连接",
+      companionCancelAuth: "取消授权",
+      companionDisconnect: "断开连接",
+      companionDisconnectConfirm:
+        "要断开 ChatGPT / Codex 账号，并从这台 Mac 的钥匙串中删除其凭据吗？",
+      companionAuthPrivacy:
+        "登录会在浏览器中打开 chatgpt.com。YouTube Digest 不会接触你的密码、授权码或令牌。",
+      companionActionFailed: "操作未完成。请检查本地伴侣状态后重试。",
       localRemix: "本地改造",
       customizationTitle: "想使用其他 AI 模型？",
       customizationPurpose: "编辑并复制一段可安全交给编程 Agent 的提示词",
@@ -457,6 +522,89 @@ const YTD_OPTIONS = (() => {
     };
   }
 
+  // Maps an account authorization phase from the connection contract (see
+  // companion.js) to the Settings account view. The view is render-only
+  // data: badge/detail copy keys, button visibility, and the connect-button
+  // label, so no account state is ever persisted by the page.
+  const ACCOUNT_OUTCOME_KEYS = {
+    expired: "companionOutcomeExpired",
+    denied: "companionOutcomeDenied",
+    cancelled: "companionOutcomeCancelled",
+    "state-mismatch": "companionOutcomeStateMismatch",
+    error: "companionOutcomeError",
+  };
+
+  function describeAccountView({
+    companionState,
+    authSupported = false,
+    phase = "signed-out",
+    lastOutcome = null,
+    accountLabel = null,
+  } = {}) {
+    if (companionState !== "ready") {
+      return { visible: false, phase: "hidden" };
+    }
+    if (!authSupported) {
+      return {
+        visible: true,
+        phase: "unsupported",
+        badgeKey: "companionAccountUpdateBadge",
+        detailKey: "companionAuthUnsupportedDetail",
+        detailParams: {},
+        connectLabelKey: null,
+        showCancel: false,
+        showDisconnect: false,
+      };
+    }
+    if (phase === "authorizing") {
+      return {
+        visible: true,
+        phase,
+        badgeKey: "companionAccountAuthorizingBadge",
+        detailKey: "companionAccountAuthorizingDetail",
+        detailParams: {},
+        connectLabelKey: null,
+        showCancel: true,
+        showDisconnect: false,
+      };
+    }
+    if (phase === "connected") {
+      return {
+        visible: true,
+        phase,
+        badgeKey: "companionAccountConnectedBadge",
+        detailKey: "companionAccountConnectedDetail",
+        detailParams: { label: accountLabel ?? null },
+        connectLabelKey: null,
+        showCancel: false,
+        showDisconnect: true,
+      };
+    }
+    if (phase === "reconnect-required") {
+      return {
+        visible: true,
+        phase,
+        badgeKey: "companionAccountReconnectBadge",
+        detailKey: "companionAccountReconnectDetail",
+        detailParams: {},
+        connectLabelKey: "companionReconnect",
+        showCancel: false,
+        showDisconnect: true,
+      };
+    }
+    return {
+      visible: true,
+      phase: "signed-out",
+      badgeKey: "companionAccountSignedOutBadge",
+      detailKey:
+        ACCOUNT_OUTCOME_KEYS[lastOutcome] ?? "companionAccountSignedOutDetail",
+      detailParams: {},
+      connectLabelKey: "companionConnect",
+      showCancel: false,
+      showDisconnect: false,
+    };
+  }
+
   function initialize(root = globalThis) {
     const doc = root.document;
     const settingsApi = root.YTD_SETTINGS;
@@ -475,6 +623,13 @@ const YTD_OPTIONS = (() => {
     const companionDetail = doc.getElementById("companionDetail");
     const companionInstall = doc.getElementById("companionInstall");
     const companionCheckBtn = doc.getElementById("companionCheckBtn");
+    const companionAccount = doc.getElementById("companionAccount");
+    const accountBadge = doc.getElementById("accountBadge");
+    const accountDetail = doc.getElementById("accountDetail");
+    const companionConnectBtn = doc.getElementById("companionConnectBtn");
+    const companionCancelAuthBtn = doc.getElementById("companionCancelAuthBtn");
+    const companionDisconnectBtn = doc.getElementById("companionDisconnectBtn");
+    const accountActionStatus = doc.getElementById("accountActionStatus");
     const customizationPrompt = doc.getElementById("customizationPrompt");
     const copyCustomizationPromptBtn = doc.getElementById(
       "copyCustomizationPromptBtn",
@@ -486,16 +641,19 @@ const YTD_OPTIONS = (() => {
     const statusStates = new Map();
     const promptDrafts = createPromptDrafts();
     let currentLanguage = "en";
+    let lastAccountView = { visible: false, phase: "hidden" };
+    let authPollTimer = null;
+    let companionActionInFlight = false;
 
     function renderStatus(element) {
       const state = statusStates.get(element);
-      element.textContent = state
-        ? translate(currentLanguage, state.key, state.params)
-        : "";
+      element.textContent =
+        state && state.key ? translate(currentLanguage, state.key, state.params) : "";
     }
 
     function setStatus(element, key, params = {}) {
-      statusStates.set(element, { key, params });
+      if (key === null) statusStates.delete(element);
+      else statusStates.set(element, { key, params });
       renderStatus(element);
     }
 
@@ -535,6 +693,7 @@ const YTD_OPTIONS = (() => {
       );
       updateLanguageButtonState(languageButtons, currentLanguage);
       for (const element of statusStates.keys()) renderStatus(element);
+      renderAccountView(lastAccountView);
     }
 
     async function loadSettings() {
@@ -645,12 +804,104 @@ const YTD_OPTIONS = (() => {
       companionInstall.hidden = !view.showInstallSteps;
     }
 
-    async function refreshCompanionStatus() {
+    // The account view is derived, never stored: every render comes from a
+    // fresh contract result, and the page keeps only the view object in
+    // memory so language switches can re-render it.
+    function renderAccountView(view) {
+      lastAccountView = view;
+      if (!companionAccount || !accountBadge || !accountDetail) return;
+      companionAccount.hidden = !view.visible;
+      if (!view.visible) return;
+      companionAccount.dataset.accountPhase = view.phase;
+      setStatus(accountBadge, view.badgeKey);
+      setStatus(accountDetail, view.detailKey, view.detailParams);
+      if (companionConnectBtn) {
+        companionConnectBtn.hidden = view.connectLabelKey === null;
+        if (view.connectLabelKey) {
+          companionConnectBtn.textContent = translate(
+            currentLanguage,
+            view.connectLabelKey,
+          );
+        }
+      }
+      if (companionCancelAuthBtn) {
+        companionCancelAuthBtn.hidden = !view.showCancel;
+      }
+      if (companionDisconnectBtn) {
+        companionDisconnectBtn.hidden = !view.showDisconnect;
+      }
+    }
+
+    function setAccountButtonsDisabled(disabled) {
+      for (const button of [
+        companionConnectBtn,
+        companionCancelAuthBtn,
+        companionDisconnectBtn,
+      ]) {
+        if (button) button.disabled = disabled;
+      }
+    }
+
+    function syncAuthPolling(phase) {
+      const shouldPoll = phase === "authorizing";
+      if (shouldPoll && authPollTimer === null) {
+        // Each poll is a one-shot status request through Native Messaging;
+        // the companion resolves the fresh account phase from its state.
+        authPollTimer = setInterval(() => {
+          void refreshCompanionStatus({ silent: true });
+        }, 2000);
+      } else if (!shouldPoll && authPollTimer !== null) {
+        clearInterval(authPollTimer);
+        authPollTimer = null;
+      }
+    }
+
+    async function runCompanionAction(runner, { confirmFirst = false } = {}) {
+      if (companionActionInFlight || !companionApi || typeof runner !== "function") {
+        return;
+      }
+      companionActionInFlight = true;
+      setAccountButtonsDisabled(true);
+      try {
+        if (
+          confirmFirst &&
+          !root.confirm(translate(currentLanguage, "companionDisconnectConfirm"))
+        ) {
+          return;
+        }
+        const result = await runner({ runtime: root.chrome?.runtime });
+        setStatus(
+          accountActionStatus,
+          result?.ok ? null : "companionActionFailed",
+        );
+        await refreshCompanionStatus({ silent: true });
+      } catch (_error) {
+        setStatus(accountActionStatus, "companionActionFailed");
+      } finally {
+        companionActionInFlight = false;
+        setAccountButtonsDisabled(false);
+      }
+    }
+
+    async function refreshCompanionStatus({ silent = false } = {}) {
       if (!companionApi || !companionCard) return;
-      renderCompanionStatus({ state: companionApi.STATUS.CHECKING });
-      renderCompanionStatus(
-        await companionApi.checkStatus({ runtime: root.chrome?.runtime }),
+      if (!silent) {
+        renderCompanionStatus({ state: companionApi.STATUS.CHECKING });
+      }
+      const result = await companionApi.checkStatus({
+        runtime: root.chrome?.runtime,
+      });
+      renderCompanionStatus(result);
+      renderAccountView(
+        describeAccountView({
+          companionState: result.state,
+          authSupported: result.authSupported === true,
+          phase: result.auth?.phase,
+          lastOutcome: result.auth?.lastOutcome ?? null,
+          accountLabel: result.auth?.accountLabel ?? null,
+        }),
       );
+      syncAuthPolling(result.auth?.phase);
     }
 
     form.addEventListener("submit", saveSettings);
@@ -666,6 +917,18 @@ const YTD_OPTIONS = (() => {
     companionCheckBtn?.addEventListener("click", () => {
       void refreshCompanionStatus();
     });
+    companionConnectBtn?.addEventListener("click", () => {
+      void runCompanionAction(companionApi?.beginAuthorization);
+    });
+    companionCancelAuthBtn?.addEventListener("click", () => {
+      void runCompanionAction(companionApi?.cancelAuthorization);
+    });
+    companionDisconnectBtn?.addEventListener("click", () => {
+      void runCompanionAction(companionApi?.disconnectAccount, {
+        confirmFirst: true,
+      });
+    });
+    root.addEventListener?.("pagehide", () => syncAuthPolling(null));
     for (const button of languageButtons) {
       button.addEventListener("click", async () => {
         const language = button.dataset.language;
@@ -687,6 +950,7 @@ const YTD_OPTIONS = (() => {
     copyPromptValue,
     createPromptDrafts,
     createStorageAdapter,
+    describeAccountView,
     describeCompanionStatus,
     normalizeLanguage,
     persistPreferredLanguage,
