@@ -42,5 +42,6 @@ Examples include:
 - Revoke keys immediately if a device, browser profile, ZIP, log, or screenshot exposes them.
 - Remember that Chrome local extension storage is not an encrypted password vault.
 - The optional companion stores your ChatGPT / Codex sign-in credential only in the macOS Keychain and never returns it to the extension. Use Disconnect in Settings to delete it; resetting extension data does not. Treat the credential like a password: disconnect and sign in again if you suspect this Mac was compromised.
+- The companion design keeps the connection local end to end: Chrome Native Messaging is the only extension-to-companion channel, sign-in and AI requests go directly from this Mac to OpenAI, and no YouTube Digest server, cloud proxy, sub2api instance, or database sits in the path.
 
-The release tooling uses an explicit file allowlist and scans public files for common credential patterns, but automated checks cannot detect every secret.
+The release tooling uses an explicit file allowlist and scans publishable repository files for common credential patterns, including API keys, OAuth authorization URLs and codes, JWT, bearer, and session token shapes, but automated checks cannot detect every secret.

@@ -252,6 +252,17 @@ const patterns = [
   ["Google API key", /\bAIza[0-9A-Za-z_-]{30,}\b/g],
   ["Slack token", /\bxox[baprs]-[0-9A-Za-z-]{20,}\b/g],
   ["AWS access key", /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g],
+  // OAuth material for the local ChatGPT / Codex companion. Thresholds are
+  // set above the length of every deliberate redaction-test fixture, so the
+  // scan only trips on production-shaped values.
+  ["JWT token", /\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\b/g],
+  ["OAuth authorization code in URL", /[?&]code=[A-Za-z0-9_-]{16,}/g],
+  [
+    "OAuth authorization URL with flow state",
+    /oauth\/authorize\?[^\s"'<>]*(?:state|code_challenge)=/g,
+  ],
+  ["long bearer token", /\bBearer\s+[A-Za-z0-9._-]{40,}/gi],
+  ["OpenAI session token", /\bsess-[A-Za-z0-9_-]{20,}\b/g],
   [
     "credential assignment",
     /\b(?:api[_-]?key|secret|access[_-]?token|auth[_-]?token)\b\s*[:=]\s*["'][^"'\s]{16,}["']/gi,

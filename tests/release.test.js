@@ -354,3 +354,115 @@ test("published prompt files contain runtime sections", () => {
     }
   }
 });
+
+test("companion connection docs cover the release lifecycle and claim boundaries", () => {
+  const readme = read("README.md");
+  const chineseReadme = read("README.zh-CN.md");
+  const privacy = read("PRIVACY.md");
+  const security = read("SECURITY.md");
+  const checkScript = read("scripts/check-release.sh");
+
+  // Installation, authorization, model selection, cancel, reconnect, and
+  // disconnect are documented in both languages.
+  for (const doc of [readme, chineseReadme]) {
+    assert.match(doc, /^### (?:Install the companion|安装本地伴侣)$/m);
+    assert.match(
+      doc,
+      /^### (?:Sign in with your ChatGPT account|使用 ChatGPT 账号登录)$/m,
+    );
+    assert.match(doc, /^### (?:Choose a Codex model|选择 Codex 模型)$/m);
+    assert.match(doc, /(?:Cancel authorization|取消授权)/);
+    assert.match(doc, /(?:Reconnect required|需要重新连接)/);
+    assert.match(doc, /(?:\*\*Disconnect\*\*|断开连接)/);
+  }
+  assert.match(
+    readme,
+    /switching back to DeepSeek routes every feature through DeepSeek/i,
+  );
+  assert.match(
+    chineseReadme,
+    /在设置中切回 DeepSeek 后，所有功能也会立即回到 DeepSeek/,
+  );
+
+  // The real-video verification flow exists in both languages and covers
+  // reload, Digest, a second AI action, the DeepSeek regression, and
+  // disconnect.
+  assert.match(readme, /^### Verify the connection on a real video$/m);
+  assert.match(
+    readme,
+    /Reload the unpacked extension at `chrome:\/\/extensions`[\s\S]*run \*\*Digest\*\*[\s\S]*one more AI action[\s\S]*back to \*\*DeepSeek\*\*[\s\S]*\*\*Disconnect\*\*/,
+  );
+  assert.match(chineseReadme, /^### 在真实视频上验证连接$/m);
+  assert.match(
+    chineseReadme,
+    /重新加载已解压的扩展[\s\S]*运行 \*\*Digest\*\*[\s\S]*再运行一个 AI 功能[\s\S]*切回 \*\*DeepSeek\*\*[\s\S]*「断开连接」/,
+  );
+
+  // The subscription-is-not-an-API-credential and catalog-is-not-an-
+  // entitlement disclaimers must exist in both languages.
+  assert.match(
+    readme,
+    /A ChatGPT subscription and OpenAI API billing are separate products/,
+  );
+  assert.match(
+    readme,
+    /is not an OpenAI API credential and does not create API credits/,
+  );
+  assert.match(
+    chineseReadme,
+    /ChatGPT 订阅与 OpenAI API 计费是两个独立的产品/,
+  );
+  assert.match(chineseReadme, /不是 OpenAI API 凭据，也不会产生 API 额度/);
+  assert.match(readme, /not guaranteed to be included in your ChatGPT plan/);
+  assert.match(chineseReadme, /不保证包含在你的 ChatGPT 套餐中/);
+
+  // Privacy and security docs pin the local-to-provider flow, the Keychain
+  // boundary, and the no-cloud-server decision.
+  assert.match(
+    privacy,
+    /No YouTube Digest server, cloud proxy, relay, or database participates anywhere in this path/,
+  );
+  assert.match(privacy, /stores no transcripts or prompts/);
+  assert.match(
+    privacy,
+    /Resetting extension data in Chrome does not remove the Keychain credential/,
+  );
+  assert.match(
+    security,
+    /no YouTube Digest server, cloud proxy, sub2api instance, or database sits in the path/,
+  );
+
+  // The release check scans OAuth-shaped values, not just API keys.
+  assert.match(checkScript, /JWT token/);
+  assert.match(checkScript, /OAuth authorization code in URL/);
+  assert.match(checkScript, /OAuth authorization URL with flow state/);
+  assert.match(checkScript, /long bearer token/);
+  assert.match(checkScript, /OpenAI session token/);
+});
+
+test("manual acceptance record ships with the seven required checks", () => {
+  const recordPath = "docs/acceptance/codex-companion-acceptance.md";
+  assert.equal(fs.existsSync(path.join(root, recordPath)), true, recordPath);
+  const record = read(recordPath);
+
+  assert.match(
+    record,
+    /^# ChatGPT \/ Codex companion release acceptance record$/m,
+  );
+  assert.match(record, /^## Automated verification$/m);
+  assert.match(
+    record,
+    /^## Manual acceptance checklist \(requires a real ChatGPT account\)$/m,
+  );
+  for (const step of [
+    "Helper installation",
+    "Real ChatGPT login",
+    "Model selection",
+    "Real-video Digest",
+    "One remaining AI action",
+    "DeepSeek regression",
+    "Disconnect",
+  ]) {
+    assert.match(record, new RegExp(`- \\[ \\] ${step}`));
+  }
+});

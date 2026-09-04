@@ -588,6 +588,47 @@ test("typed service failures cross the contract and unknown errors become host-e
   assert.equal(crashed.error, "host-error");
 });
 
+test("failed completions keep transcript content out of logs, state, and replies", async () => {
+  const canary = "CANARY-TRANSCRIPT-LINE-ZERO-THROUGH-NINE";
+  const messages = [
+    { role: "system", content: "Summarize the transcript as JSON." },
+    { role: "user", content: `[0:00] ${canary}` },
+  ];
+  const logged = [];
+  const authState = createFakeAuthState();
+  const service = completionsModule.createCompletionService({
+    // A provider that fails verbosely and echoes request content inside its
+    // own error body is the worst case: transcript text must still never
+    // reach stderr, the state file, or the extension reply.
+    fetchImpl: async () =>
+      jsonResponse(
+        { error: { message: `provider exploded while reading ${canary}` } },
+        { ok: false, status: 500 },
+      ),
+    keychain: createFakeKeychain(JSON.stringify(TOKENS)),
+    authState,
+    log: (message) => logged.push(message),
+  });
+
+  await assert.rejects(
+    service.runCompletion({ model: "gpt-5.3-codex", messages }),
+    (error) => error.code === "provider-error",
+  );
+  assert.equal(logged.join("\n").includes(canary), false);
+  assert.equal(JSON.stringify(authState.read()).includes(canary), false);
+
+  const deps = createHostDeps();
+  deps.authState = authState;
+  deps.completions = service;
+  const response = await host.handleRequest(
+    { v: 1, type: "completion.create", model: "gpt-5.3-codex", messages },
+    deps,
+  );
+  assert.equal(response.ok, false);
+  assert.equal(response.error, "provider-error");
+  assert.equal(JSON.stringify(response).includes(canary), false);
+});
+
 test("host serves a completion end-to-end through the real service", async () => {
   const deps = createHostDeps();
   deps.keychain = createFakeKeychain(JSON.stringify(TOKENS));

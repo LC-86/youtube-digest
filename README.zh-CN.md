@@ -101,7 +101,7 @@ API Key 和设置保存在你设备上的 Chrome 扩展本地存储中。发布�
 
 ## 连接 ChatGPT / Codex 订阅（macOS，可选）
 
-YouTube Digest 也可以使用 ChatGPT / Codex 订阅，而不是 DeepSeek API Key。连接通过一个运行在 Mac 上的小型本地伴侣完成，扩展只通过 Chrome Native Messaging 与它通信。你不需要在扩展中填写任何 OpenAI API Key、令牌或密码。
+YouTube Digest 也可以使用 ChatGPT / Codex 订阅，而不是 DeepSeek API Key。连接通过一个运行在 Mac 上的小型本地伴侣完成，扩展只通过 Chrome Native Messaging 与它通信。你不需要在扩展中填写任何 OpenAI API Key、令牌或密码。ChatGPT 订阅与 OpenAI API 计费是两个独立的产品：订阅不是 OpenAI API 凭据，也不会产生 API 额度。此功能只使用订阅自带的 Codex 访问权限。
 
 本次更新加入了账号登录、模型选择，以及通过该连接发起的 AI 请求：设置页可以确认本地伴侣已安装、版本兼容并且可以通信；显示已就绪后，即可使用你的 ChatGPT 账号登录，从本地伴侣提供的 Codex 模型中选择一个并保存。所有 AI 功能（概览、讲解、翻译和笔记润色）都会使用所选模型；在设置中切回 DeepSeek 后，所有功能也会立即回到 DeepSeek。
 
@@ -157,6 +157,16 @@ YouTube Digest 也可以使用 ChatGPT / Codex 订阅，而不是 DeepSeek API K
 保存模型后，所有 AI 功能都会使用所选服务和模型：概览、选中文本讲解、翻译和自动润色笔记。每个功能在运行时读取当前保存的服务和模型，因此重新连接账号或更换模型后，下一次请求立即生效；失败信息会指明需要处理的服务和模型，并给出恢复步骤。
 
 AI 功能通过 ChatGPT / Codex 运行时，扩展会把该功能的 prompt（指令加上相关内容，例如带时间戳的字幕、选中的段落或正在润色的笔记）发送给本地伴侣；伴侣从这台 Mac 直接把请求转发给所选服务，只把生成的文本返回给扩展。
+
+### 在真实视频上验证连接
+
+保存模型后，在一个真实视频上完整走一遍流程，确认整条链路可用：
+
+1. 在 `chrome://extensions` 重新加载已解压的扩展，然后刷新 YouTube 页面。
+2. 打开一个有原生字幕的 YouTube 视频，运行 **Digest**。概览应通过你选择的 Codex 模型生成。
+3. 再运行一个 AI 功能，例如讲解选中的字幕文本，确认第二个功能也使用这条连接。
+4. 在设置中把 AI 服务切回 **DeepSeek**，再次运行 **Digest**，确认原来的 API Key 路径仍然可用。
+5. 如果两个服务都符合预期，连接即验证完成。之后如需移除账号凭据，请使用设置中的「断开连接」。
 
 ## 使用 YouTube Digest
 

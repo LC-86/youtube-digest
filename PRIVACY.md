@@ -1,6 +1,6 @@
 # Privacy
 
-Effective: July 28, 2026
+Effective: September 4, 2026
 
 YouTube Digest is a GitHub-only, bring-your-own-key Chrome extension. It has no YouTube Digest account, developer-operated backend, analytics, advertising, or telemetry.
 
@@ -48,7 +48,7 @@ The exchange covers the companion's local status (installed, compatible, reachab
 
 When you sign in, the companion opens the ChatGPT authorization page in your browser, receives the OAuth callback on a loopback port on your Mac, and stores the resulting refresh credential only in the macOS Keychain. During sign-in, your browser exchanges account credentials directly with OpenAI; YouTube Digest and the companion never see your password. The companion keeps a small local state file with the connection phase and a typed outcome (for example "expired" or "denied"); it contains no credentials.
 
-When an AI feature runs through ChatGPT / Codex, the extension sends that feature's prompt (the instruction plus its content, such as timestamped transcript text, a selected passage, or the note being polished) to the companion over Chrome Native Messaging. The companion forwards the request directly from this Mac to OpenAI's Codex endpoint under your signed-in account and returns only the completed text to the extension. The extension never receives tokens, account identifiers, or provider request bodies, and the companion stores no transcripts or prompts; OpenAI processes the forwarded content under its own terms and privacy policy. Removing the sign-in credential is explicit: use Disconnect in Settings. Resetting extension data in Chrome does not remove the Keychain credential, because it belongs to the companion, not the extension.
+When an AI feature runs through ChatGPT / Codex, the extension sends that feature's prompt (the instruction plus its content, such as timestamped transcript text, a selected passage, or the note being polished) to the companion over Chrome Native Messaging. The companion forwards the request directly from this Mac to OpenAI's Codex endpoint under your signed-in account and returns only the completed text to the extension. The extension never receives tokens, account identifiers, or provider request bodies, and the companion stores no transcripts or prompts; OpenAI processes the forwarded content under its own terms and privacy policy. No YouTube Digest server, cloud proxy, relay, or database participates anywhere in this path: sign-in runs between your browser, the companion on this Mac, and OpenAI, and AI requests run directly between this Mac and OpenAI. Removing the sign-in credential is explicit: use Disconnect in Settings. Resetting extension data in Chrome does not remove the Keychain credential, because it belongs to the companion, not the extension.
 
 ## Local storage and retention
 

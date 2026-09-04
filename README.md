@@ -99,7 +99,7 @@ Keys and settings are stored in Chrome's local extension storage on your device.
 
 ## Connect a ChatGPT / Codex subscription (macOS, optional)
 
-YouTube Digest can also work with a ChatGPT / Codex subscription instead of a DeepSeek API key. The connection runs through a small companion app that lives on your Mac, and the extension talks to it only through Chrome Native Messaging. You never enter an OpenAI API key, token, or password in the extension.
+YouTube Digest can also work with a ChatGPT / Codex subscription instead of a DeepSeek API key. The connection runs through a small companion app that lives on your Mac, and the extension talks to it only through Chrome Native Messaging. You never enter an OpenAI API key, token, or password in the extension. A ChatGPT subscription and OpenAI API billing are separate products: a subscription is not an OpenAI API credential and does not create API credits. This feature uses the subscription's Codex access only.
 
 This update adds account sign-in, model selection, and AI requests through the connection. Settings can confirm that the companion is present, compatible, and reachable; once it is Ready you can sign in with your ChatGPT account, pick one of the companion's Codex models, and save it. Every AI feature (overviews, selected-text explanations, translation, and note polishing) then uses the selected model, and switching back to DeepSeek routes every feature through DeepSeek again.
 
@@ -155,6 +155,16 @@ Two things the list does not promise:
 After you save a model, every AI feature uses the selected provider and model: overviews, selected-text explanations, translation, and automatic note polishing. Each feature reads the saved provider and model when it runs, so reconnecting the account or saving a different model applies to the very next request. Failures name the provider and model that need attention and state the recovery step.
 
 When an AI feature runs through ChatGPT / Codex, the extension sends that feature's prompt (the instruction plus its content, such as timestamped transcript text, a selected passage, or the note being polished) to the companion, which forwards the request directly from your Mac to the provider and returns only the completed text.
+
+### Verify the connection on a real video
+
+After saving a model, run one full pass on a real video so you know the connection works end to end:
+
+1. Reload the unpacked extension at `chrome://extensions`, then refresh the YouTube tab.
+2. Open a YouTube video with native captions and run **Digest**. The overview should arrive through your selected Codex model.
+3. Run one more AI action, such as explaining selected transcript text, to confirm a second feature uses the same connection.
+4. Switch the AI provider back to **DeepSeek** and run **Digest** again to confirm the original API-key path still works.
+5. If both providers behave as expected, the connection is verified. To remove the account credential later, use **Disconnect** in Settings.
 
 ## Use YouTube Digest
 
