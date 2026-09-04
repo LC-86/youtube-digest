@@ -6,12 +6,14 @@
  * extension never sees it, the companion's state file never contains it, and
  * a browser-data reset cannot remove it; only the Disconnect action does.
  *
- * The default runner shells out to the macOS `security` tool. Writes go
- * through `security -i`, so the secret travels on stdin and never appears in
- * the process argument list, where other local processes could read it via
- * ps. Tests inject a fake runner through the same interface, so no test
- * writes to the real login Keychain (the stdio integration check only
- * performs a read-only lookup that misses).
+ * The default runner shells out to the macOS `security` tool. Writes pass
+ * the secret as the `-w` value of `add-generic-password`: macOS 26 hangs
+ * `security -i` on any non-tty stdin (even a bare `quit`), so the former
+ * stdin-only write is not viable. The tradeoff is that the secret is
+ * visible to same-user processes via ps for the command's lifetime. Tests
+ * inject a fake runner through the same interface, so no test writes to the
+ * real login Keychain (the stdio integration check only performs a
+ * read-only lookup that misses).
  */
 "use strict";
 
@@ -49,12 +51,6 @@ function isItemMissing(error) {
   return /could not be found/i.test(String(error?.message || ""));
 }
 
-// Quotes a value for `security -i`'s interactive command line, which parses
-// double-quoted tokens with backslash escapes.
-function quoteForSecurityCli(value) {
-  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
-}
-
 function createKeychainStore({
   service = KEYCHAIN.SERVICE,
   account = KEYCHAIN.ACCOUNT,
@@ -71,9 +67,16 @@ function createKeychainStore({
     if (Buffer.byteLength(secret, "utf8") > KEYCHAIN.MAX_SECRET_BYTES) {
       throw new Error("keychain-secret-too-large");
     }
-    await run(["-i"], {
-      input: `add-generic-password -U -s ${service} -a ${account} -w ${quoteForSecurityCli(secret)}\n`,
-    });
+    await run([
+      "add-generic-password",
+      "-U",
+      "-s",
+      service,
+      "-a",
+      account,
+      "-w",
+      secret,
+    ]);
     return true;
   }
 
@@ -87,7 +90,11 @@ function createKeychainStore({
         account,
         "-w",
       ]);
-      return typeof secret === "string" && secret ? secret : null;
+      // The real tool prints the password followed by a newline; the stored
+      // JSON never ends in whitespace, so trailing newlines are tool output.
+      const value =
+        typeof secret === "string" ? secret.replace(/\n+$/, "") : "";
+      return value || null;
     } catch (error) {
       if (isItemMissing(error)) return null;
       throw error;

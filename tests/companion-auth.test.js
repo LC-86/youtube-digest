@@ -203,26 +203,20 @@ test("redact strips known secrets and token-shaped values", () => {
 
 // ------------------------------------------------------------ keychain.js
 
-test("keychain store keeps the secret off argv and round-trips it", async () => {
+test("keychain store writes through the security CLI and round-trips it", async () => {
   const calls = [];
   const items = new Map();
   const keyOf = (args) =>
     `${args[args.indexOf("-s") + 1]}:${args[args.indexOf("-a") + 1]}`;
-  // Mirrors the real tool's surface: writes arrive as an interactive
-  // command on stdin (`security -i`), reads and deletes as plain argv.
-  const run = async (args, options = {}) => {
-    calls.push({ args, input: options.input ?? null });
-    if (args[0] === "-i") {
-      const command = options.input;
-      const writeMatch = command.match(
-        /^add-generic-password -U -s (\S+) -a (\S+) -w "(.*)"\n$/,
-      );
-      assert.ok(writeMatch, `unexpected interactive command: ${command}`);
-      const [, service, account, escaped] = writeMatch;
-      items.set(
-        `${service}:${account}`,
-        escaped.replace(/\\"/g, '"').replace(/\\\\/g, "\\"),
-      );
+  // Mirrors the real tool's surface: writes pass the secret as the -w
+  // value of `security add-generic-password`. macOS 26 hangs `security -i`
+  // on any non-tty stdin (even `quit`), so an interactive stdin write is
+  // not viable there; the accepted tradeoff is a ps-visible secret for the
+  // command's lifetime, readable only by same-user processes.
+  const run = async (args) => {
+    calls.push({ args });
+    if (args[0] === "add-generic-password") {
+      items.set(keyOf(args), args[args.indexOf("-w") + 1]);
       return "";
     }
     if (args[0] === "find-generic-password") {
@@ -257,12 +251,16 @@ test("keychain store keeps the secret off argv and round-trips it", async () => 
   assert.equal(await store.load(), null);
   assert.equal(await store.remove(), false);
 
-  assert.deepEqual(calls[0].args, ["-i"]);
-  assert.match(calls[0].input, /^add-generic-password -U -s svc-test -a acct-test -w "/);
-  // The secret travels on stdin only; no argv of any call exposes it.
-  for (const call of calls) {
-    assert.ok(!call.args.includes(secret));
-  }
+  assert.deepEqual(calls[0].args, [
+    "add-generic-password",
+    "-U",
+    "-s",
+    "svc-test",
+    "-a",
+    "acct-test",
+    "-w",
+    secret,
+  ]);
   assert.deepEqual(calls[1].args, [
     "find-generic-password",
     "-s",
