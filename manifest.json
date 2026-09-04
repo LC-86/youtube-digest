@@ -4,7 +4,13 @@
   "version": "1.2.0",
   "minimum_chrome_version": "116",
   "description": "Turn YouTube videos into learning resources with transcripts, bilingual translation, AI overviews, and notes.",
-  "permissions": ["sidePanel", "storage", "tabs", "scripting"],
+  "permissions": [
+    "sidePanel",
+    "storage",
+    "tabs",
+    "scripting",
+    "nativeMessaging"
+  ],
   "host_permissions": [
     "https://www.youtube.com/*",
     "https://api.supadata.ai/*",
@@ -30,8 +36,12 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.youtube.com/*"],
-      "js": ["content.js"],
+      "matches": [
+        "https://www.youtube.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ],
@@ -39,5 +49,6 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  }
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3joMHdWAtMsM+dOIS1o7IWgv1PcIb+gvqCNayTLPytmfz4f+ArhrX6ZzrQaPT8ay/znIWZSy6U4l+CLiAGBeEUYpT6HjSkf/mu48bBvDPUm80DnmGCMGb7ACOBcPqvOD6QLbylmjhlZUhL+OxLtUDo3xyMIVDmJc/BG8P1pgZXuFC7UPcTlLbJT26aRkz++QhQgepkiD8iWZX2jJ+A3QWkSaVSWPuLaz5/TTiOaey5tY+8SmCLhGTGw3FGR41xp6wHeutfXx9Wx/nqBN+RbJV+a9F8EMpRkqVzXrS4nLzdW++EHqQAXBrxoGBtUTeJjDGLDeSm/H+k9q/MeB3/EJ8wIDAQAB"
 }

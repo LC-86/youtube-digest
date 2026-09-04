@@ -97,6 +97,31 @@ YouTube Digest sends every DeepSeek request in non-thinking mode for responsive,
 
 Keys and settings are stored in Chrome's local extension storage on your device. Release builds do not include or use `config.js`.
 
+## Connect a ChatGPT / Codex subscription (macOS, optional)
+
+YouTube Digest can also work with a ChatGPT / Codex subscription instead of a DeepSeek API key. The connection runs through a small companion app that lives on your Mac, and the extension talks to it only through Chrome Native Messaging. You never enter an OpenAI API key, token, or password in the extension.
+
+This update installs the groundwork. Settings can confirm that the companion is present, compatible, and reachable; signing in with your ChatGPT account arrives in a following update. Until then, AI features continue to use DeepSeek.
+
+### Install the companion
+
+1. Make sure Node.js is installed on this Mac.
+2. In Terminal, from the YouTube Digest project folder, run:
+
+   ```bash
+   bash companion/install.sh
+   ```
+
+3. Reload the unpacked extension at `chrome://extensions`, then reopen YouTube Digest Settings.
+
+The companion card in Settings then shows one of three states:
+
+- **Ready**: the extension and the companion communicate through Chrome Native Messaging.
+- **Unavailable**: the companion is missing, blocked, or not responding. Settings shows the installation steps; follow them and press Check again.
+- **Incompatible**: the installed companion is older than this extension expects. Re-run the installer from the latest YouTube Digest folder to update it.
+
+The installer registers the companion for your default Chrome profile only. The companion accepts connections only from YouTube Digest's fixed extension identity, which is pinned in `manifest.json`. Updating from an earlier version: the extension now keeps this fixed identity, so Chrome treats the reloaded extension as new and you must re-enter your Supadata and DeepSeek keys once.
+
 ## Use YouTube Digest
 
 1. Open a standard YouTube watch page with captions.
@@ -115,6 +140,7 @@ Keys and settings are stored in Chrome's local extension storage on your device.
 - AI overviews, selected-text explanations, translation, and automatic note polishing.
 - Local notes and a local cache for recent transcript and digest results.
 - DeepSeek V4 Flash for all published AI features. Other providers require a local code adaptation and are not supported by this published version.
+- An optional macOS companion for ChatGPT / Codex can be installed; Settings shows whether it is Ready, Unavailable, or Incompatible. Signing in and AI requests through it arrive in a following update.
 
 Shorts, live streams, private or access-restricted videos, and videos without an available native transcript may not work. Firefox, Safari, mobile browsers, and other Chromium browsers are not currently tested or supported.
 

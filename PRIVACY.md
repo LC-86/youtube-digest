@@ -40,6 +40,10 @@ Requests go directly from the extension to Supadata or DeepSeek. They are authen
 
 Those services process data under their own terms, privacy policies, retention practices, and account settings. Do not send confidential, personal, or regulated content unless their terms and your obligations permit it.
 
+### Local Codex companion (optional, macOS)
+
+YouTube Digest can talk to an optional companion app that you install on your Mac from the repository. The extension reaches it only through Chrome Native Messaging, and the companion accepts only YouTube Digest's fixed extension identity. Today the exchange is limited to local status and version messages, which contain no browsing data, transcripts, or credentials. ChatGPT / Codex sign-in and AI requests through the companion arrive in a following update and will be documented here before they carry any content.
+
 ## Local storage and retention
 
 YouTube Digest uses Chrome's local extension storage, not a YouTube Digest cloud service.
@@ -69,6 +73,7 @@ YouTube Digest uses Chrome permissions for these purposes:
 - `storage`: store settings, keys, notes, and cached results locally.
 - `tabs`: identify and interact with the active YouTube tab.
 - `scripting`: coordinate the extension's YouTube page controls.
+- `nativeMessaging`: exchange local status messages with the optional macOS companion you installed; Chrome restricts the connection to that companion's registered identity.
 - YouTube host access: read the active video's URL and metadata and provide timestamp controls.
 - Supadata host access: retrieve transcripts.
 - DeepSeek host access: provide AI overviews, explanations, translation, and note polishing through DeepSeek V4 Flash.

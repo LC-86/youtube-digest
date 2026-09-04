@@ -1,0 +1,7 @@
+{
+  "name": "com.youtube_digest.companion",
+  "description": "YouTube Digest local Codex companion",
+  "path": "__COMPANION_LAUNCHER__",
+  "type": "stdio",
+  "allowed_origins": ["chrome-extension://gikngdpklnbijkhbjaeidniijjmaafff/"]
+}

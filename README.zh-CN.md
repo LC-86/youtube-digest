@@ -99,6 +99,31 @@ YouTube Digest 会让所有 DeepSeek 请求使用非思考模式，以获得更�
 
 API Key 和设置保存在你设备上的 Chrome 扩展本地存储中。发布包不会包含或使用 `config.js`。
 
+## 连接 ChatGPT / Codex 订阅（macOS，可选）
+
+YouTube Digest 也可以使用 ChatGPT / Codex 订阅，而不是 DeepSeek API Key。连接通过一个运行在 Mac 上的小型本地伴侣完成，扩展只通过 Chrome Native Messaging 与它通信。你不需要在扩展中填写任何 OpenAI API Key、令牌或密码。
+
+本次更新先完成基础部分：设置页可以确认本地伴侣已安装、版本兼容并且可以通信；使用 ChatGPT 账号登录会在后续更新中提供。在此之前，AI 功能继续使用 DeepSeek。
+
+### 安装本地伴侣
+
+1. 确认这台 Mac 已安装 Node.js。
+2. 在终端中进入 YouTube Digest 项目文件夹并运行：
+
+   ```bash
+   bash companion/install.sh
+   ```
+
+3. 在 `chrome://extensions` 重新加载已解压的扩展，然后重新打开 YouTube Digest 设置页。
+
+设置页中的本地伴侣卡片会显示三种状态之一：
+
+- **已就绪**：扩展与本地伴侣可以通过 Chrome Native Messaging 通信。
+- **不可用**：伴侣缺失、被拒绝或没有响应。设置页会显示安装步骤，按步骤操作后点击再检查一次。
+- **不兼容**：已安装的伴侣比当前扩展要求的版本更旧。请在最新的 YouTube Digest 文件夹重新运行安装脚本进行更新。
+
+安装脚本只为当前 Chrome 默认个人资料注册伴侣。伴侣只接受 YouTube Digest 固定扩展身份的连接，该身份固定在 `manifest.json` 中。从旧版本升级时：扩展现在使用固定身份，Chrome 会把重新加载后的扩展当作新扩展，需要重新填写一次 Supadata 和 DeepSeek 密钥。
+
 ## 使用 YouTube Digest
 
 1. 打开一个有字幕的普通 YouTube 视频页面。
@@ -117,6 +142,7 @@ API Key 和设置保存在你设备上的 Chrome 扩展本地存储中。发布�
 - AI 概览、选中文本讲解、翻译和自动润色笔记。
 - 本地笔记，以及最近字幕、概览和翻译的本地缓存。
 - 发布版本的所有 AI 功能都使用 DeepSeek V4 Flash。其他服务需要修改本地代码，不属于发布版本的支持范围。
+- 可以安装可选的 macOS ChatGPT / Codex 本地伴侣；设置页会显示它是否已就绪、不可用或不兼容。通过它登录和发起 AI 请求会在后续更新中提供。
 
 Shorts、直播、私密视频、受访问限制的视频，以及没有原生字幕的视频可能无法使用。目前没有测试 Firefox、Safari、移动浏览器或其他 Chromium 浏览器。
 

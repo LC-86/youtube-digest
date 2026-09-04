@@ -27,6 +27,36 @@ const YTD_OPTIONS = (() => {
       privacyNote:
         "When you use AI features, DeepSeek receives the video transcript and relevant video context. Review DeepSeek's terms and pricing before saving.",
       saveSettings: "Save settings",
+      companionTitle: "ChatGPT / Codex companion",
+      companionIntro:
+        "Optional macOS helper that connects YouTube Digest to a ChatGPT / Codex subscription through Chrome Native Messaging. No API key or token is entered in the extension.",
+      companionChecking: "Checking…",
+      companionReadyBadge: "Ready",
+      companionUnavailableBadge: "Unavailable",
+      companionIncompatibleBadge: "Incompatible",
+      companionReadyDetail: ({ version }) =>
+        `The extension can reach the companion through Chrome Native Messaging (companion ${version ?? "unknown version"}).`,
+      companionReasonHostNotInstalled:
+        "The companion is not installed for this Chrome profile. Follow the installation steps below, then check again.",
+      companionReasonHostNotAllowed:
+        "The installed companion does not accept this copy of the extension. Re-run the installer from this project folder, reload the extension, then check again.",
+      companionReasonHostNotRunning:
+        "The companion is installed but could not start. Re-running the installer from this project folder repairs it.",
+      companionReasonHostNotResponding:
+        "The companion did not answer the status request. Re-run the installer from the latest YouTube Digest folder, then check again.",
+      companionReasonBrowserUnsupported:
+        "Open these settings from the YouTube Digest extension in Chrome to check the companion.",
+      companionReasonHostError:
+        "The companion reported an error. Re-run the installer from this project folder, then check again.",
+      companionReasonProtocolUnsupported: ({ found }) =>
+        `The installed companion speaks protocol ${found ?? "unknown"}, which this version of the extension does not support. Update it by re-running the installer from the latest YouTube Digest folder, then check again.`,
+      companionInstallIntro:
+        "Install it from your YouTube Digest project folder:",
+      companionStepNode: "Make sure Node.js is installed on this Mac.",
+      companionStepInstall: "In Terminal, from the project folder, run:",
+      companionStepReload:
+        "Reload the unpacked extension at chrome://extensions, reopen Settings, and check again.",
+      companionCheckAgain: "Check again",
       localRemix: "Local remix",
       customizationTitle: "Want to use another AI model?",
       customizationPurpose: "Edit and copy a safe prompt for your coding agent",
@@ -96,6 +126,35 @@ const YTD_OPTIONS = (() => {
       privacyNote:
         "使用 AI 功能时，DeepSeek 会收到视频字幕及相关视频上下文。保存前请查看 DeepSeek 的服务条款和价格。",
       saveSettings: "保存设置",
+      companionTitle: "ChatGPT / Codex 本地伴侣",
+      companionIntro:
+        "可选的 macOS 本地助手，通过 Chrome Native Messaging 把 YouTube Digest 连接到 ChatGPT / Codex 订阅。不需要在扩展中填写任何 API 密钥或令牌。",
+      companionChecking: "正在检查…",
+      companionReadyBadge: "已就绪",
+      companionUnavailableBadge: "不可用",
+      companionIncompatibleBadge: "不兼容",
+      companionReadyDetail: ({ version }) =>
+        `扩展已能通过 Chrome Native Messaging 与本地伴侣通信（伴侣版本 ${version ?? "未知"}）。`,
+      companionReasonHostNotInstalled:
+        "当前 Chrome 个人资料尚未安装本地伴侣。按下面的步骤安装，然后再检查一次。",
+      companionReasonHostNotAllowed:
+        "已安装的伴侣不接受这份扩展。请在当前项目文件夹重新运行安装脚本，重新加载扩展后再检查一次。",
+      companionReasonHostNotRunning:
+        "伴侣已安装但无法启动。在当前项目文件夹重新运行安装脚本即可修复。",
+      companionReasonHostNotResponding:
+        "本地伴侣没有响应状态请求。请在最新的 YouTube Digest 文件夹重新运行安装脚本，然后再检查一次。",
+      companionReasonBrowserUnsupported:
+        "请在 Chrome 中通过 YouTube Digest 扩展打开本设置页，才能检查本地伴侣。",
+      companionReasonHostError:
+        "本地伴侣返回了错误。请在当前项目文件夹重新运行安装脚本，然后再检查一次。",
+      companionReasonProtocolUnsupported: ({ found }) =>
+        `已安装的伴侣使用协议版本 ${found ?? "未知"}，当前扩展不支持。请在最新的 YouTube Digest 文件夹重新运行安装脚本进行更新，然后再检查一次。`,
+      companionInstallIntro: "在 YouTube Digest 项目文件夹中安装：",
+      companionStepNode: "确认这台 Mac 已安装 Node.js。",
+      companionStepInstall: "在终端中进入项目文件夹并运行：",
+      companionStepReload:
+        "在 chrome://extensions 重新加载已解压的扩展，重新打开设置页，再检查一次。",
+      companionCheckAgain: "再检查一次",
       localRemix: "本地改造",
       customizationTitle: "想使用其他 AI 模型？",
       customizationPurpose: "编辑并复制一段可安全交给编程 Agent 的提示词",
@@ -338,11 +397,72 @@ const YTD_OPTIONS = (() => {
     }
   }
 
+  const COMPANION_BADGE_KEYS = {
+    checking: "companionChecking",
+    ready: "companionReadyBadge",
+    unavailable: "companionUnavailableBadge",
+    incompatible: "companionIncompatibleBadge",
+  };
+
+  const COMPANION_REASON_KEYS = {
+    "browser-unsupported": "companionReasonBrowserUnsupported",
+    "host-not-installed": "companionReasonHostNotInstalled",
+    "host-not-allowed": "companionReasonHostNotAllowed",
+    "host-not-running": "companionReasonHostNotRunning",
+    "host-not-responding": "companionReasonHostNotResponding",
+    "host-error": "companionReasonHostError",
+  };
+
+  // Maps a connection-contract result (see companion.js) to the copy shown
+  // in Settings. Install steps are hidden when they cannot help: the ready,
+  // checking, and browser-context cases.
+  function describeCompanionStatus(result) {
+    const state = result?.state ?? "checking";
+    const badgeKey =
+      COMPANION_BADGE_KEYS[state] ?? COMPANION_BADGE_KEYS.unavailable;
+    if (state === "ready") {
+      return {
+        state,
+        badgeKey,
+        detailKey: "companionReadyDetail",
+        detailParams: { version: result.hostVersion ?? null },
+        showInstallSteps: false,
+      };
+    }
+    if (state === "incompatible") {
+      return {
+        state,
+        badgeKey,
+        detailKey: "companionReasonProtocolUnsupported",
+        detailParams: { found: result.found ?? null },
+        showInstallSteps: true,
+      };
+    }
+    if (state === "checking") {
+      return {
+        state,
+        badgeKey,
+        detailKey: null,
+        detailParams: {},
+        showInstallSteps: false,
+      };
+    }
+    return {
+      state: "unavailable",
+      badgeKey,
+      detailKey:
+        COMPANION_REASON_KEYS[result?.reason] ?? "companionReasonHostError",
+      detailParams: {},
+      showInstallSteps: result?.reason !== "browser-unsupported",
+    };
+  }
+
   function initialize(root = globalThis) {
     const doc = root.document;
     const settingsApi = root.YTD_SETTINGS;
     if (!doc || !settingsApi) return;
 
+    const companionApi = root.YTD_COMPANION;
     const storage = createStorageAdapter(
       root.chrome,
       getSafeLocalStorage(root),
@@ -350,6 +470,11 @@ const YTD_OPTIONS = (() => {
     const form = doc.getElementById("settingsForm");
     const aiApiKeyInput = doc.getElementById("aiApiKey");
     const supadataApiKeyInput = doc.getElementById("supadataApiKey");
+    const companionCard = doc.getElementById("companionCard");
+    const companionBadge = doc.getElementById("companionBadge");
+    const companionDetail = doc.getElementById("companionDetail");
+    const companionInstall = doc.getElementById("companionInstall");
+    const companionCheckBtn = doc.getElementById("companionCheckBtn");
     const customizationPrompt = doc.getElementById("customizationPrompt");
     const copyCustomizationPromptBtn = doc.getElementById(
       "copyCustomizationPromptBtn",
@@ -438,6 +563,7 @@ const YTD_OPTIONS = (() => {
         applyLanguage("en");
       }
       await loadSettings();
+      void refreshCompanionStatus();
     }
 
     async function saveSettings(event) {
@@ -503,6 +629,30 @@ const YTD_OPTIONS = (() => {
       setStatus(dataStatus, "allDataDeleted");
     }
 
+    function renderCompanionStatus(result) {
+      if (
+        !companionCard ||
+        !companionBadge ||
+        !companionDetail ||
+        !companionInstall
+      ) {
+        return;
+      }
+      const view = describeCompanionStatus(result);
+      companionCard.dataset.companionState = view.state;
+      setStatus(companionBadge, view.badgeKey);
+      setStatus(companionDetail, view.detailKey, view.detailParams);
+      companionInstall.hidden = !view.showInstallSteps;
+    }
+
+    async function refreshCompanionStatus() {
+      if (!companionApi || !companionCard) return;
+      renderCompanionStatus({ state: companionApi.STATUS.CHECKING });
+      renderCompanionStatus(
+        await companionApi.checkStatus({ runtime: root.chrome?.runtime }),
+      );
+    }
+
     form.addEventListener("submit", saveSettings);
     copyCustomizationPromptBtn.addEventListener(
       "click",
@@ -513,6 +663,9 @@ const YTD_OPTIONS = (() => {
       .addEventListener("click", clearCachedDigests);
     doc.getElementById("clearNotesBtn").addEventListener("click", clearNotes);
     doc.getElementById("resetBtn").addEventListener("click", resetAllData);
+    companionCheckBtn?.addEventListener("click", () => {
+      void refreshCompanionStatus();
+    });
     for (const button of languageButtons) {
       button.addEventListener("click", async () => {
         const language = button.dataset.language;
@@ -534,6 +687,7 @@ const YTD_OPTIONS = (() => {
     copyPromptValue,
     createPromptDrafts,
     createStorageAdapter,
+    describeCompanionStatus,
     normalizeLanguage,
     persistPreferredLanguage,
     readPreferredLanguage,

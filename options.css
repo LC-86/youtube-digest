@@ -352,6 +352,72 @@ button.danger {
   margin-top: 36px;
 }
 
+.companion-card {
+  margin-top: 36px;
+}
+
+.companion-status-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+}
+
+.companion-badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f2e3dc;
+  color: #714b3f;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.companion-detail {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.companion-card[data-companion-state="ready"] .companion-badge {
+  background: #e6efe2;
+  color: #41633a;
+}
+
+.companion-card[data-companion-state="unavailable"] .companion-badge {
+  background: #f7ecd7;
+  color: #7a5b1e;
+}
+
+.companion-card[data-companion-state="incompatible"] .companion-badge {
+  background: #f7e2df;
+  color: #8a3330;
+}
+
+.companion-install {
+  margin-top: 14px;
+}
+
+.companion-command {
+  display: block;
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+.companion-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
 footer {
   margin-top: 28px;
   color: var(--muted);

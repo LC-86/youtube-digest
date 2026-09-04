@@ -125,6 +125,62 @@
         </div>
       </form>
 
+      <section
+        class="card companion-card"
+        id="companionCard"
+        data-companion-state="checking"
+      >
+        <h2 data-i18n="companionTitle">ChatGPT / Codex companion</h2>
+        <p class="companion-status-line">
+          <span
+            class="companion-badge"
+            id="companionBadge"
+            data-i18n="companionChecking"
+            >Checking…</span
+          >
+          <span
+            class="companion-detail"
+            id="companionDetail"
+            role="status"
+            aria-live="polite"
+          ></span>
+        </p>
+        <p class="help" data-i18n="companionIntro">
+          Optional macOS helper that connects YouTube Digest to a ChatGPT /
+          Codex subscription through Chrome Native Messaging. No API key or
+          token is entered in the extension.
+        </p>
+        <div id="companionInstall" class="companion-install" hidden>
+          <p class="help" data-i18n="companionInstallIntro">
+            Install it from your YouTube Digest project folder:
+          </p>
+          <ol class="customization-steps">
+            <li data-i18n="companionStepNode">
+              Make sure Node.js is installed on this Mac.
+            </li>
+            <li>
+              <span data-i18n="companionStepInstall"
+                >In Terminal, from the project folder, run:</span
+              >
+              <code class="companion-command">bash companion/install.sh</code>
+            </li>
+            <li data-i18n="companionStepReload">
+              Reload the unpacked extension at chrome://extensions, reopen
+              Settings, and check again.
+            </li>
+          </ol>
+        </div>
+        <div class="companion-actions">
+          <button
+            id="companionCheckBtn"
+            type="button"
+            data-i18n="companionCheckAgain"
+          >
+            Check again
+          </button>
+        </div>
+      </section>
+
       <details class="card customization-card">
         <summary class="customization-summary">
           <span class="customization-summary-copy">
@@ -222,6 +278,7 @@
     </main>
 
     <script src="settings.js"></script>
+    <script src="companion.js"></script>
     <script src="options.js"></script>
   </body>
 </html>

@@ -20,6 +20,24 @@ test("manifest uses minimized install-time permissions", () => {
   assert.equal(manifest.version, "1.2.0");
 });
 
+test("manifest pins the stable identity used for native messaging", () => {
+  const manifest = JSON.parse(read("manifest.json"));
+  const { deriveExtensionId } = require("../companion/extension-id.js");
+
+  assert.ok(manifest.permissions.includes("nativeMessaging"));
+  const stableId = deriveExtensionId(manifest.key);
+  assert.match(stableId, /^[a-p]{32}$/);
+
+  const hostTemplate = JSON.parse(
+    read("companion/host-manifest.template.json"),
+  );
+  assert.deepEqual(hostTemplate.allowed_origins, [
+    `chrome-extension://${stableId}/`,
+  ]);
+  // The launcher path stays machine-specific; only the installer fills it in.
+  assert.equal(hostTemplate.path, "__COMPANION_LAUNCHER__");
+});
+
 test("release copy documents current scope without em dashes", () => {
   const readme = read("README.md");
   const chineseReadme = read("README.zh-CN.md");

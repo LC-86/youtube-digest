@@ -18,6 +18,9 @@ skills-lock.json
 node_modules/
 dist/
 
+# Companion installer output (generated per machine)
+companion/bin/
+
 # Environment
 .env
 .env.*
