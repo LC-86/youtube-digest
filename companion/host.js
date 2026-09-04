@@ -31,6 +31,7 @@ const {
 } = require("./auth-state.js");
 const { createKeychainStore } = require("./keychain.js");
 const { createCompletionService, ERROR_CODES } = require("./completions.js");
+const { createProxyFetch } = require("./outbound.js");
 const models = require("./models.js");
 const { OAUTH, decodeIdTokenEmail, maskEmail, redact } = require("./oauth.js");
 
@@ -63,10 +64,14 @@ function createDefaultDeps() {
     service: process.env.YTD_COMPANION_KEYCHAIN_SERVICE,
     account: process.env.YTD_COMPANION_KEYCHAIN_ACCOUNT,
   });
+  // OpenAI's auth and Codex endpoints must leave through the same proxy the
+  // browser uses, or region-restricted networks reject the companion outright.
+  const fetchImpl = createProxyFetch();
   return {
     authState,
     keychain,
-    completions: createCompletionService({ keychain, authState }),
+    fetchImpl,
+    completions: createCompletionService({ fetchImpl, keychain, authState }),
     spawnAuthWorker() {
       const child = spawn(
         process.execPath,

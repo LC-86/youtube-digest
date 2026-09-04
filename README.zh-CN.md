@@ -124,6 +124,10 @@ YouTube Digest 也可以使用 ChatGPT / Codex 订阅，而不是 DeepSeek API K
 
 安装脚本只为当前 Chrome 默认个人资料注册伴侣。伴侣只接受 YouTube Digest 固定扩展身份的连接，该身份固定在 `manifest.json` 中。从旧版本升级时：扩展现在使用固定身份，Chrome 会把重新加载后的扩展当作新扩展，需要重新填写一次 Supadata 和 DeepSeek 密钥。
 
+### 伴侣的网络访问与代理
+
+伴侣的登录和 Codex 请求会跟随浏览器使用的代理：自动读取 macOS 系统代理和标准的 `HTTPS_PROXY` 环境变量。可以用 `YTD_COMPANION_PROXY` 覆盖（例如 `http://127.0.0.1:10808`，或设为 `direct` 强制直连）。只配置了 PAC 自动代理时不会自动解析，请显式设置 `YTD_COMPANION_PROXY`。
+
 ### 使用 ChatGPT 账号登录
 
 本地伴侣显示已就绪后，卡片会提供「使用 ChatGPT 登录」：

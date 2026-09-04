@@ -29,6 +29,7 @@ const {
 } = require("./oauth.js");
 const { createAuthState, markOutcome } = require("./auth-state.js");
 const { createKeychainStore } = require("./keychain.js");
+const { createProxyFetch } = require("./outbound.js");
 
 const WORKER = Object.freeze({
   TICK_MS: 250,
@@ -100,10 +101,11 @@ function successPage() {
   };
 }
 
-function failurePage(kind) {
+function failurePage(kind, reason) {
+  const detail = reason ? `: ${reason}` : "";
   return {
     status: 400,
-    body: `Authorization could not be completed (${kind}). Close this tab and try again from YouTube Digest Settings.`,
+    body: `Authorization could not be completed (${kind}${detail}). Close this tab and try again from YouTube Digest Settings.`,
   };
 }
 
@@ -200,7 +202,7 @@ async function createAuthFlow({
         log(`auth flow failed: ${reason}`);
         markOutcome(authState, { kind: "error", reason }, now());
         return {
-          ...failurePage("error"),
+          ...failurePage("error", reason),
           afterResponse: () => finish({ kind: "error", reason }),
         };
       }
@@ -273,6 +275,9 @@ async function createAuthFlow({
 
 function createDefaultDependencies() {
   return {
+    // The token exchange must leave through the same proxy the browser used
+    // for sign-in, or region-restricted networks reject it outright.
+    fetchImpl: createProxyFetch(),
     keychain: createKeychainStore({
       service: process.env.YTD_COMPANION_KEYCHAIN_SERVICE,
       account: process.env.YTD_COMPANION_KEYCHAIN_ACCOUNT,
@@ -306,6 +311,7 @@ if (require.main === module) {
 module.exports = {
   WORKER,
   createAuthFlow,
+  createDefaultDependencies,
   startLoopbackServer,
   successPage,
   failurePage,

@@ -122,6 +122,10 @@ The companion card in Settings then shows one of three states:
 
 The installer registers the companion for your default Chrome profile only. The companion accepts connections only from YouTube Digest's fixed extension identity, which is pinned in `manifest.json`. Updating from an earlier version: the extension now keeps this fixed identity, so Chrome treats the reloaded extension as new and you must re-enter your Supadata and DeepSeek keys once.
 
+### Companion network access and proxies
+
+The companion's sign-in and Codex requests follow the same proxy your browser uses: it reads the macOS system proxy and the standard `HTTPS_PROXY` environment variable automatically. Set `YTD_COMPANION_PROXY` to override it (for example `http://127.0.0.1:10808`, or `direct` to force direct connections). PAC-only proxy configurations are not resolved automatically; set `YTD_COMPANION_PROXY` explicitly in that case.
+
 ### Sign in with your ChatGPT account
 
 When the companion is Ready, its card offers **Sign in with ChatGPT**:
