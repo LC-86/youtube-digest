@@ -325,6 +325,15 @@ test("models.validate confirms catalog models and types every rejection", async 
 
 // ------------------------------------------------------ extension contract
 
+test("model requests keep a timeout wide enough for the live catalog", () => {
+  // The host answers from the live provider catalog (Keychain read plus an
+  // authenticated request through the user's proxy), which measures in
+  // multiple seconds on real machines; the 5s control-request bound raced
+  // it and failed intermittently.
+  assert.ok(companion.MODELS_TIMEOUT_MS >= 15_000);
+  assert.ok(companion.MODELS_TIMEOUT_MS > companion.DEFAULT_TIMEOUT_MS);
+});
+
 test("contract loads the catalog through one models.list request", async () => {
   const catalog = [
     { id: "gpt-5.1-codex", label: "GPT-5.1 Codex" },

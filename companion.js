@@ -19,6 +19,11 @@ var YTD_COMPANION = (() => {
   const PROTOCOL_VERSION = 1;
   const SUPPORTED_PROTOCOL_VERSIONS = Object.freeze([1]);
   const DEFAULT_TIMEOUT_MS = 5000;
+  // The host answers model requests from the live provider catalog: a
+  // Keychain read plus an authenticated request through the user's proxy
+  // measures in multiple seconds, so model actions get a wider bound than
+  // the fast status/auth round-trips.
+  const MODELS_TIMEOUT_MS = 20_000;
   // A Digest completion is a full transcript analysis, so its transport
   // timeout matches the provider hard cap instead of the control requests.
   const DEFAULT_COMPLETION_TIMEOUT_MS = 120_000;
@@ -343,7 +348,7 @@ var YTD_COMPANION = (() => {
   // { ok: false, reason } with the same reason vocabulary as the auth
   // actions, plus catalog-malformed when an ok:true host reply still fails
   // the catalog whitelist.
-  async function runModelsAction(action, { runtime, model, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+  async function runModelsAction(action, { runtime, model, timeoutMs = MODELS_TIMEOUT_MS } = {}) {
     const message = { v: PROTOCOL_VERSION, type: action };
     if (action === MODELS_ACTIONS.VALIDATE) {
       message.model = model;
@@ -472,6 +477,7 @@ var YTD_COMPANION = (() => {
     PROTOCOL_VERSION,
     SUPPORTED_PROTOCOL_VERSIONS,
     DEFAULT_TIMEOUT_MS,
+    MODELS_TIMEOUT_MS,
     DEFAULT_COMPLETION_TIMEOUT_MS,
     STATUS,
     REASON,
