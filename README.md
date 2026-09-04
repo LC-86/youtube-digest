@@ -101,7 +101,7 @@ Keys and settings are stored in Chrome's local extension storage on your device.
 
 YouTube Digest can also work with a ChatGPT / Codex subscription instead of a DeepSeek API key. The connection runs through a small companion app that lives on your Mac, and the extension talks to it only through Chrome Native Messaging. You never enter an OpenAI API key, token, or password in the extension.
 
-This update adds account sign-in and model selection. Settings can confirm that the companion is present, compatible, and reachable; once it is Ready you can sign in with your ChatGPT account and pick one of the companion's Codex models. Using the selected model for AI features arrives in a following update; until then, they continue to use DeepSeek.
+This update adds account sign-in, model selection, and AI requests through the connection. Settings can confirm that the companion is present, compatible, and reachable; once it is Ready you can sign in with your ChatGPT account, pick one of the companion's Codex models, and save it. Every AI feature (overviews, selected-text explanations, translation, and note polishing) then uses the selected model, and switching back to DeepSeek routes every feature through DeepSeek again.
 
 ### Install the companion
 
@@ -152,7 +152,9 @@ Two things the list does not promise:
 - The list comes from the companion, not from your account, so a listed model is not guaranteed to be included in your ChatGPT plan. The first real request decides; if it reports the model as unavailable, select Get models, choose another model, or sign in again.
 - If the installed companion stops offering your saved model, Settings says so when it opens and points you back to Get models.
 
-AI requests through the connection arrive in a following update; until then, AI features continue to use DeepSeek.
+After you save a model, every AI feature uses the selected provider and model: overviews, selected-text explanations, translation, and automatic note polishing. Each feature reads the saved provider and model when it runs, so reconnecting the account or saving a different model applies to the very next request. Failures name the provider and model that need attention and state the recovery step.
+
+When an AI feature runs through ChatGPT / Codex, the extension sends that feature's prompt (the instruction plus its content, such as timestamped transcript text, a selected passage, or the note being polished) to the companion, which forwards the request directly from your Mac to the provider and returns only the completed text.
 
 ## Use YouTube Digest
 
@@ -171,8 +173,8 @@ AI requests through the connection arrive in a following update; until then, AI 
 - Original, Simplified Chinese, and aligned bilingual transcript views.
 - AI overviews, selected-text explanations, translation, and automatic note polishing.
 - Local notes and a local cache for recent transcript and digest results.
-- DeepSeek V4 Flash for all published AI features. Other providers require a local code adaptation and are not supported by this published version.
-- An optional macOS companion for ChatGPT / Codex can be installed; Settings shows whether it is Ready, Unavailable, or Incompatible, and when Ready you can sign in with your ChatGPT account, cancel, reconnect, or disconnect it, and load the companion's Codex model list to pick and save one model. AI requests through the connection arrive in a following update.
+- Two AI providers: DeepSeek V4 Flash with your own API key, or your ChatGPT / Codex subscription through the local companion. The provider selected in Settings serves every AI feature.
+- An optional macOS companion for ChatGPT / Codex can be installed; Settings shows whether it is Ready, Unavailable, or Incompatible, and when Ready you can sign in with your ChatGPT account, cancel, reconnect, or disconnect it, and load the companion's Codex model list to pick and save one model. Every AI feature then runs through the selected model.
 
 Shorts, live streams, private or access-restricted videos, and videos without an available native transcript may not work. Firefox, Safari, mobile browsers, and other Chromium browsers are not currently tested or supported.
 

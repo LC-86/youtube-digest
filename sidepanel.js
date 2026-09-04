@@ -1921,7 +1921,9 @@ async function showExplanation(selectedText) {
     if (result.success) {
       contentDiv.innerHTML = `<div class="explain-text">${escapeHtml(result.explanation).replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br>")}</div>`;
     } else {
-      contentDiv.innerHTML = `<div class="explain-error">Failed to get explanation: ${escapeHtml(result.error)}</div>`;
+      // Prefer the actionable message (e.g. setup or provider guidance) over
+      // the raw error code, matching the Overview and translation surfaces.
+      contentDiv.innerHTML = `<div class="explain-error">Failed to get explanation: ${escapeHtml(result.message || result.error)}</div>`;
     }
   } catch (error) {
     const contentDiv = document.getElementById("explanationContent");

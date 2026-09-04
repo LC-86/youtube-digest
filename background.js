@@ -90,6 +90,14 @@ function aiProviderMissingMessage(settings) {
     : "DeepSeek API key not configured. Open YouTube Digest Settings.";
 }
 
+// Names the provider (and its model) for failures whose raw form cannot say
+// which connection needs attention, such as model output that will not parse.
+function aiProviderFailureDetail(settings) {
+  return settings.provider === "codex"
+    ? `ChatGPT / Codex (${settings.codexModel})`
+    : `DeepSeek (${settings.aiModel})`;
+}
+
 async function requestAiCompletion({
   messages,
   maxTokens,
@@ -1121,7 +1129,8 @@ async function handleAnalyzeTranscript(
     );
 
     debugLog("[YouTube Digest] Requesting video analysis", settings.aiModel);
-    const { text: responseText } = await requestAiCompletion({
+    const { text: responseText, settings: completionSettings } =
+      await requestAiCompletion({
       maxTokens: 8192,
       responseFormat: { type: "json_object" },
       messages: [
@@ -1130,8 +1139,19 @@ async function handleAnalyzeTranscript(
       ],
     });
 
-    // Parse the JSON, tolerating trailing commas / stray prose
-    let analysis = parseLooseJson(responseText);
+    // Parse the JSON, tolerating trailing commas / stray prose. A model that
+    // still cannot produce readable JSON is a provider failure, so the error
+    // names the provider and model instead of leaking a parser message.
+    let analysis;
+    try {
+      analysis = parseLooseJson(responseText);
+    } catch (_parseError) {
+      return {
+        success: false,
+        error: "AI_RESPONSE_UNPARSEABLE",
+        message: `${aiProviderFailureDetail(completionSettings)} returned a Digest that could not be read. Please Retry.`,
+      };
+    }
 
     // Treat every model response as untrusted data. Rebuild the supported
     // schema and derive display timestamps from validated numeric seconds.
@@ -1801,9 +1821,16 @@ async function handleTranslateContent(
       translationOptions,
     );
 
-    // DeepSeek JSON mode can rarely return an empty content string. The prompt
-    // already requires JSON, so retry once without response_format.
-    if (!result.success && result.code === "EMPTY_AI_RESPONSE") {
+    // A provider can rarely return an empty completion: DeepSeek JSON mode
+    // returns an empty content string, and the Codex path reports its own
+    // empty-response code. Retry once (DeepSeek without response_format, so
+    // the JSON-mode quirk cannot repeat) so a transient empty recovers
+    // without user action.
+    if (
+      !result.success &&
+      (result.code === "EMPTY_AI_RESPONSE" ||
+        result.code === "CODEX_EMPTY_RESPONSE")
+    ) {
       result = await callAiTranslation(systemPrompt, userContent, {
         temperature: translationOptions.temperature,
         maxTokens: translationOptions.maxTokens,
@@ -1811,12 +1838,22 @@ async function handleTranslateContent(
     }
     if (!result.success) return result;
 
-    const parsed = parseLooseJson(result.text);
+    // Unparseable model output is a provider failure, not a parser crash:
+    // name the connection so the user knows which one to retry.
+    let parsed;
+    try {
+      parsed = parseLooseJson(result.text);
+    } catch (_parseError) {
+      return {
+        success: false,
+        error: `${aiProviderFailureDetail(settings)} returned a translation that could not be read. Please Retry.`,
+      };
+    }
     const aligned = normalizeTranslatedSegmentBatch(parsed, sourceSegments);
     if (!aligned.segments.some((segment) => segment.text)) {
       return {
         success: false,
-        error: "Translation returned no valid Chinese segments",
+        error: `${aiProviderFailureDetail(settings)} returned no valid Chinese segments. Please Retry.`,
       };
     }
     return { success: true, translatedContent: aligned };
@@ -1872,6 +1909,7 @@ globalThis.__YTD_TRANSLATION_TESTING__ = {
   handleSaveNote,
   handleTranslateContent,
   handleAnalyzeTranscript,
+  handleExplainSelection,
   closePanelForTab,
   updatePanelForTab,
 };
