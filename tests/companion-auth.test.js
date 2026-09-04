@@ -580,7 +580,12 @@ test("status reports the account phase and auth capability", async () => {
 
   assert.equal(response.ok, true);
   assert.equal(response.status, "ready");
-  assert.deepEqual(response.capabilities, ["status", "auth", "models"]);
+  assert.deepEqual(response.capabilities, [
+    "status",
+    "auth",
+    "models",
+    "completions",
+  ]);
   assert.deepEqual(response.auth, { phase: "signed-out", lastOutcome: null });
 });
 

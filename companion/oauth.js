@@ -114,6 +114,31 @@ async function exchangeCodeForTokens({
   });
 }
 
+// Refreshes a stored credential with the refresh-token grant. Used by the
+// completion path when the provider rejects an access token; the new tokens
+// stay inside the companion and are re-stored only in the Keychain.
+async function refreshTokens({
+  fetchImpl = fetch,
+  issuer = OAUTH.ISSUER,
+  clientId = OAUTH.CLIENT_ID,
+  refreshToken,
+  timeoutMs = OAUTH.TOKEN_TIMEOUT_MS,
+}) {
+  if (typeof refreshToken !== "string" || !refreshToken) {
+    throw new Error("token-request-failed: missing refresh token");
+  }
+  return postTokenRequest({
+    fetchImpl,
+    url: `${issuer}/oauth/token`,
+    timeoutMs,
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+      client_id: clientId,
+    }),
+  });
+}
+
 async function postTokenRequest({ fetchImpl, url, timeoutMs, body }) {
   let response;
   try {
@@ -208,6 +233,7 @@ module.exports = {
   buildAuthorizeUrl,
   validateCallback,
   exchangeCodeForTokens,
+  refreshTokens,
   decodeIdTokenEmail,
   maskEmail,
   redact,

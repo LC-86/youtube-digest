@@ -12,18 +12,25 @@
  * It never handles credentials: responses are normalized through a
  * whitelist, so authorization URLs, codes, and tokens cannot reach
  * extension storage or UI even if a broken host tried to include them.
+ * Completion replies are whitelisted the same way, down to their text.
  */
 var YTD_COMPANION = (() => {
   const HOST_NAME = "com.youtube_digest.companion";
   const PROTOCOL_VERSION = 1;
   const SUPPORTED_PROTOCOL_VERSIONS = Object.freeze([1]);
   const DEFAULT_TIMEOUT_MS = 5000;
+  // A Digest completion is a full transcript analysis, so its transport
+  // timeout matches the provider hard cap instead of the control requests.
+  const DEFAULT_COMPLETION_TIMEOUT_MS = 120_000;
   const MAX_HOST_VERSION_LENGTH = 32;
   const MAX_ERROR_CODE_LENGTH = 40;
   const MAX_CAPABILITY_LENGTH = 24;
   const MAX_ACCOUNT_LABEL_LENGTH = 64;
   const MAX_MODEL_LABEL_LENGTH = 64;
   const MAX_CATALOG_MODELS = 32;
+  const MAX_COMPLETION_TEXT_CHARS = 400_000;
+  const MAX_COMPLETION_MESSAGES = 16;
+  const MAX_COMPLETION_PROMPT_CHARS = 1_000_000;
 
   const STATUS = Object.freeze({
     CHECKING: "checking",
@@ -41,6 +48,8 @@ var YTD_COMPANION = (() => {
     PROTOCOL_UNSUPPORTED: "protocol-unsupported",
     HOST_ERROR: "host-error",
     CATALOG_MALFORMED: "catalog-malformed",
+    INVALID_REQUEST: "invalid-request",
+    COMPLETION_MALFORMED: "completion-malformed",
   });
 
   const AUTH_PHASE = Object.freeze({
@@ -70,6 +79,10 @@ var YTD_COMPANION = (() => {
   const MODELS_ACTIONS = Object.freeze({
     LIST: "models.list",
     VALIDATE: "models.validate",
+  });
+
+  const COMPLETION_ACTIONS = Object.freeze({
+    CREATE: "completion.create",
   });
 
   function statusRequest() {
@@ -372,11 +385,94 @@ var YTD_COMPANION = (() => {
     return runModelsAction(MODELS_ACTIONS.VALIDATE, { ...options, model });
   }
 
+  // Whitelists the outbound prompt pair. The host re-validates; this keeps
+  // oversized transcripts and junk roles from ever crossing the wire.
+  function normalizeOutboundMessages(messages) {
+    if (
+      !Array.isArray(messages) ||
+      messages.length === 0 ||
+      messages.length > MAX_COMPLETION_MESSAGES
+    ) {
+      return null;
+    }
+    const normalized = [];
+    let totalChars = 0;
+    for (const message of messages) {
+      if (!message || typeof message !== "object" || Array.isArray(message)) {
+        return null;
+      }
+      if (message.role !== "system" && message.role !== "user") return null;
+      if (typeof message.content !== "string" || message.content.length === 0) {
+        return null;
+      }
+      totalChars += message.content.length;
+      normalized.push({ role: message.role, content: message.content });
+    }
+    if (totalChars > MAX_COMPLETION_PROMPT_CHARS) return null;
+    return normalized;
+  }
+
+  // A completion reply is whitelisted down to its text. An empty or
+  // oversized text from a broken host is a typed failure, not a Digest.
+  function sanitizeCompletionText(value) {
+    if (
+      typeof value !== "string" ||
+      !value.trim() ||
+      value.length > MAX_COMPLETION_TEXT_CHARS
+    ) {
+      return null;
+    }
+    return value;
+  }
+
+  // Delegates a provider completion to the companion. Returns
+  // { ok: true, text } or { ok: false, reason } using the same reason
+  // vocabulary as the auth and model actions, plus completion-malformed
+  // when an ok:true host reply still fails the text whitelist.
+  async function requestCompletion({
+    runtime,
+    model,
+    messages,
+    maxTokens,
+    timeoutMs = DEFAULT_COMPLETION_TIMEOUT_MS,
+  } = {}) {
+    const validatedModel = sanitizeModel({ id: model });
+    const outboundMessages = normalizeOutboundMessages(messages);
+    if (!validatedModel || !outboundMessages) {
+      return { ok: false, reason: REASON.INVALID_REQUEST };
+    }
+    const message = {
+      v: PROTOCOL_VERSION,
+      type: COMPLETION_ACTIONS.CREATE,
+      model: validatedModel.id,
+      messages: outboundMessages,
+    };
+    if (Number.isInteger(maxTokens) && maxTokens > 0) {
+      message.maxTokens = maxTokens;
+    }
+
+    const outcome = await sendContractRequest({
+      runtime,
+      message,
+      timeoutMs,
+    });
+    if (outcome.reason) return { ok: false, reason: outcome.reason };
+
+    const response = outcome.response;
+    if (response.ok !== true) {
+      return { ok: false, reason: normalizeErrorCode(response.error) };
+    }
+    const text = sanitizeCompletionText(response.text);
+    if (!text) return { ok: false, reason: REASON.COMPLETION_MALFORMED };
+    return { ok: true, text };
+  }
+
   return {
     HOST_NAME,
     PROTOCOL_VERSION,
     SUPPORTED_PROTOCOL_VERSIONS,
     DEFAULT_TIMEOUT_MS,
+    DEFAULT_COMPLETION_TIMEOUT_MS,
     STATUS,
     REASON,
     AUTH_PHASE,
@@ -384,6 +480,7 @@ var YTD_COMPANION = (() => {
     AUTH_OUTCOMES,
     AUTH_ACTIONS,
     MODELS_ACTIONS,
+    COMPLETION_ACTIONS,
     statusRequest,
     classifyChromeError,
     classifyStatusResponse,
@@ -391,12 +488,15 @@ var YTD_COMPANION = (() => {
     sanitizeAuth,
     sanitizeModel,
     sanitizeCatalog,
+    sanitizeCompletionText,
+    normalizeOutboundMessages,
     checkStatus,
     beginAuthorization,
     cancelAuthorization,
     disconnectAccount,
     requestModelCatalog,
     validateModel,
+    requestCompletion,
   };
 })();
 

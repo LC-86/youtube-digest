@@ -1418,14 +1418,22 @@ function showError(title, message) {
 }
 
 function showConfigError(configStatus) {
-  const missingKeys = [];
-  if (!configStatus.hasSupadataKey) missingKeys.push("Supadata");
-  if (!configStatus.hasAiKey) missingKeys.push("AI provider");
+  // The AI requirement depends on the selected provider: a DeepSeek API key
+  // or a connected ChatGPT / Codex model chosen in Settings.
+  const steps = [];
+  if (!configStatus.hasSupadataKey) steps.push("add your Supadata API key");
+  if (!configStatus.hasAiKey) {
+    steps.push(
+      configStatus.provider === "codex"
+        ? "connect ChatGPT / Codex and choose a model"
+        : "add your DeepSeek API key",
+    );
+  }
 
   showState("error");
-  document.getElementById("errorTitle").textContent = "API Keys Missing";
+  document.getElementById("errorTitle").textContent = "Setup Missing";
   document.getElementById("errorMessage").textContent =
-    `Add your ${missingKeys.join(" and ")} API key${missingKeys.length === 1 ? "" : "s"} in YouTube Digest Settings.`;
+    `Finish setup in YouTube Digest Settings: ${steps.join(", and ")}.`;
   document.getElementById("errorBtn").textContent = "Open Settings";
   errorAction = () => chrome.runtime.sendMessage({ action: "openOptions" });
 }
@@ -1532,7 +1540,7 @@ async function triggerAnalysis() {
 
     if (!analysisResult.success) {
       if (chapterList)
-        chapterList.innerHTML = `<li class="chapter-item" style="color: var(--accent); border: none;">Analysis failed: ${escapeHtml(analysisResult.error || "Unknown error")}</li>`;
+        chapterList.innerHTML = `<li class="chapter-item" style="color: var(--accent); border: none;">Analysis failed: ${escapeHtml(analysisResult.message || analysisResult.error || "Unknown error")}</li>`;
       isAnalysisLoading = false;
       return;
     }
@@ -2761,7 +2769,7 @@ async function requestTranscriptTranslationBatch(
     const aligned = alignTranslatedSegmentBatch(sourceBatch, responseSegments);
     aligned.forEach((item, batchIndex) => {
       if (!result?.success) {
-        item.error = result?.error || "Translation failed.";
+        item.error = result?.message || result?.error || "Translation failed.";
       }
       updateTranslatedRow(
         sourceBatch[batchIndex],

@@ -7,14 +7,15 @@
  * little-endian length, per Chrome's native messaging framing.
  *
  * The host answers `status`, the account authorization requests
- * (`auth.begin`, `auth.cancel`, `disconnect`), and the model catalog
- * requests (`models.list`, `models.validate`). Each native-messaging
- * request spawns a fresh host process, so pending authorization state
- * lives in a non-secret state file plus a detached auth worker, and the
- * OAuth credential lives only in the macOS Keychain. The catalog is
- * companion-defined and carries no account data, so it is answered
- * regardless of the account phase; completions arrive in a later protocol
- * addition. Every request type stays inside this envelope so Settings can
+ * (`auth.begin`, `auth.cancel`, `disconnect`), the model catalog requests
+ * (`models.list`, `models.validate`), and delegated provider completions
+ * (`completion.create`). Each native-messaging request spawns a fresh host
+ * process, so pending authorization state lives in a non-secret state file
+ * plus a detached auth worker, and the OAuth credential lives only in the
+ * macOS Keychain. The catalog is companion-defined and carries no account
+ * data, so it is answered regardless of the account phase; completions
+ * require a stored credential and convert provider failures into typed
+ * errors. Every request type stays inside this envelope so Settings can
  * detect outdated companions through the version negotiation and
  * capability list.
  */
@@ -29,6 +30,7 @@ const {
   markOutcome,
 } = require("./auth-state.js");
 const { createKeychainStore } = require("./keychain.js");
+const { createCompletionService, ERROR_CODES } = require("./completions.js");
 const models = require("./models.js");
 const { OAUTH, decodeIdTokenEmail, maskEmail, redact } = require("./oauth.js");
 
@@ -36,7 +38,7 @@ const CONTRACT = Object.freeze({
   HOST_NAME: "com.youtube_digest.companion",
   PROTOCOL_VERSION: 1,
   SUPPORTED_PROTOCOL_VERSIONS: Object.freeze([1]),
-  CAPABILITIES: Object.freeze(["status", "auth", "models"]),
+  CAPABILITIES: Object.freeze(["status", "auth", "models", "completions"]),
   MAX_INBOUND_MESSAGE_BYTES: 4 * 1024 * 1024,
   // Chrome closes the port when a host message exceeds 1 MB; stay below it.
   MAX_OUTBOUND_MESSAGE_BYTES: 900 * 1024,
@@ -56,12 +58,15 @@ function errorResponse(error) {
 }
 
 function createDefaultDeps() {
+  const authState = createAuthState();
+  const keychain = createKeychainStore({
+    service: process.env.YTD_COMPANION_KEYCHAIN_SERVICE,
+    account: process.env.YTD_COMPANION_KEYCHAIN_ACCOUNT,
+  });
   return {
-    authState: createAuthState(),
-    keychain: createKeychainStore({
-      service: process.env.YTD_COMPANION_KEYCHAIN_SERVICE,
-      account: process.env.YTD_COMPANION_KEYCHAIN_ACCOUNT,
-    }),
+    authState,
+    keychain,
+    completions: createCompletionService({ keychain, authState }),
     spawnAuthWorker() {
       const child = spawn(
         process.execPath,
@@ -318,6 +323,40 @@ async function handleRequest(request, deps = createDefaultDeps()) {
     if (!model) return errorResponse("model-unavailable");
     return { v: request.v, ok: true, type: "models.validate", model };
   }
+  if (request.type === "completion.create") {
+    // Catalog membership is enforced host-side so an unknown model fails
+    // before any credential is touched. Only the typed text field is ever
+    // copied into the reply, so provider payloads cannot smuggle extra
+    // fields (let alone credentials) back to the extension.
+    if (!models.isValidModelId(request.model)) {
+      return errorResponse("invalid-request");
+    }
+    if (!models.findModel(request.model)) {
+      return errorResponse("model-unavailable");
+    }
+    try {
+      const text = await deps.completions.runCompletion({
+        model: request.model,
+        messages: request.messages,
+        maxTokens: request.maxTokens,
+      });
+      if (typeof text !== "string" || !text) {
+        return errorResponse("host-error");
+      }
+      // Byte length, not char length: a CJK Digest under-counts in UTF-16
+      // units, and writeFrame's frame budget is bytes.
+      if (Buffer.byteLength(text, "utf8") > CONTRACT.MAX_OUTBOUND_MESSAGE_BYTES) {
+        return errorResponse("response-too-large");
+      }
+      return { v: request.v, ok: true, type: "completion.create", text };
+    } catch (error) {
+      const code = ERROR_CODES.includes(error?.code) ? error.code : "host-error";
+      if (code === "host-error") {
+        process.stderr.write(`completion failed: ${redact(error?.message)}\n`);
+      }
+      return errorResponse(code);
+    }
+  }
   return errorResponse("unknown-request-type");
 }
 
@@ -419,10 +458,14 @@ function main() {
   process.stdin.on("data", (chunk) => reader.push(chunk));
   process.stdin.on("end", () => {
     stdinEnded = true;
+    // Chrome closed the connection (the extension stopped waiting): cancel
+    // in-flight provider work instead of letting it run to its own timeout.
+    deps.completions?.abortActive?.();
     maybeExit();
   });
   process.stdin.on("error", () => {
     stdinEnded = true;
+    deps.completions?.abortActive?.();
     maybeExit();
   });
   process.stdin.resume();

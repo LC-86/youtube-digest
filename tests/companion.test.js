@@ -209,7 +209,12 @@ test("host speaks the framed status contract over stdio", async () => {
     assert.equal(response.status, "ready");
     assert.equal(response.protocol, 1);
     assert.match(response.companionVersion, /^\d+\.\d+\.\d+$/);
-    assert.deepEqual(response.capabilities, ["status", "auth", "models"]);
+    assert.deepEqual(response.capabilities, [
+      "status",
+      "auth",
+      "models",
+      "completions",
+    ]);
     assert.equal(response.auth.phase, "signed-out");
   } finally {
     child.kill();

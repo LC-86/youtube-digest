@@ -13,7 +13,8 @@
 
 // Import safe defaults and validation helpers. Secret keys live in
 // chrome.storage.local and are never part of the extension source.
-importScripts("settings.js");
+// The companion contract module carries the ChatGPT / Codex delegation.
+importScripts("settings.js", "companion.js");
 
 const DEBUG = false;
 const AI_PROVIDER_IDLE_TIMEOUT_MS = 50_000;
@@ -72,6 +73,23 @@ async function loadPromptSection(fileName, heading, variables = {}) {
   return prompt;
 }
 
+// The selected provider decides how a completion is served: DeepSeek keeps
+// its direct API-key request, while ChatGPT / Codex delegates the provider
+// request to the local companion over the versioned connection contract.
+// Both paths return the same { text, settings } shape so callers cannot tell
+// (and must not care) which provider answered.
+function aiProviderConfigured(settings) {
+  return settings.provider === "codex"
+    ? Boolean(settings.codexModel)
+    : Boolean(settings.aiApiKey);
+}
+
+function aiProviderMissingMessage(settings) {
+  return settings.provider === "codex"
+    ? "No ChatGPT / Codex model is saved yet. Open YouTube Digest Settings, connect the account, and choose a model."
+    : "DeepSeek API key not configured. Open YouTube Digest Settings.";
+}
+
 async function requestAiCompletion({
   messages,
   maxTokens,
@@ -79,10 +97,136 @@ async function requestAiCompletion({
   responseFormat,
 }) {
   const settings = await getSettings();
+  if (settings.provider === "codex") {
+    return requestCodexCompletion(settings, { messages, maxTokens });
+  }
+  return requestDeepSeekCompletion(settings, {
+    messages,
+    maxTokens,
+    temperature,
+    responseFormat,
+  });
+}
+
+// Maps connection-contract failure reasons to the actionable copy the side
+// panel shows. Every message names the provider (and the model where the
+// model is the problem) so the user knows which connection needs attention.
+function codexCompletionError(reason, model) {
+  const provider = "ChatGPT / Codex";
+  const build = (message, code) => {
+    const error = new Error(message);
+    error.code = code;
+    return error;
+  };
+  switch (reason) {
+    case "model-unavailable":
+      return build(
+        `${provider}: the model ${model} is not offered by the installed companion. Open Settings, choose Get models, and select a different model.`,
+        "CODEX_MODEL_UNAVAILABLE",
+      );
+    case "signed-out":
+      return build(
+        `${provider}: no account is connected. Open Settings, sign in, then retry.`,
+        "CODEX_SIGNED_OUT",
+      );
+    case "reconnect-required":
+      return build(
+        `${provider}: the saved sign-in expired. Open Settings and reconnect the account, then retry.`,
+        "CODEX_RECONNECT_REQUIRED",
+      );
+    case "entitlement-denied":
+      return build(
+        `${provider}: your ChatGPT plan does not include ${model}. Open Settings and choose a different model.`,
+        "CODEX_ENTITLEMENT_DENIED",
+      );
+    case "rate-limited":
+      return build(
+        `${provider} (${model}) is rate-limiting requests. Wait a moment, then retry.`,
+        "CODEX_RATE_LIMITED",
+      );
+    case "provider-timeout":
+      return build(
+        `${provider} (${model}) did not finish within the time limit. Please Retry.`,
+        "CODEX_TIMEOUT",
+      );
+    case "response-too-large":
+      return build(
+        `${provider} (${model}) returned a response that exceeds the size limit.`,
+        "CODEX_RESPONSE_TOO_LARGE",
+      );
+    case "empty-response":
+      return build(
+        `${provider} (${model}) returned an empty response. Please Retry.`,
+        "CODEX_EMPTY_RESPONSE",
+      );
+    case "invalid-request":
+    case "request-too-large":
+      return build(
+        `${provider} (${model}) rejected the request as invalid or too large. Update the companion by re-running its installer from the latest YouTube Digest folder, then retry.`,
+        "CODEX_INVALID_REQUEST",
+      );
+    case "completion-malformed":
+      return build(
+        `${provider}: the companion returned a malformed completion. Update the companion by re-running its installer from the latest YouTube Digest folder, then retry.`,
+        "CODEX_COMPLETION_MALFORMED",
+      );
+    case "protocol-unsupported":
+    case "unknown-request-type":
+      return build(
+        `${provider}: the installed companion is too old to make requests. Update it by re-running the installer from the latest YouTube Digest folder, then retry.`,
+        "CODEX_COMPANION_OUTDATED",
+      );
+    // Transport reasons (host-not-installed, host-not-responding, ...)
+    // share the copy below; the literals above are host- and
+    // contract-level codes that arrive over the wire.
+    case "browser-unsupported":
+    case "host-not-installed":
+    case "host-not-allowed":
+    case "host-not-running":
+    case "host-not-responding":
+    case "host-error":
+      return build(
+        `${provider}: the local companion is unavailable. Open Settings, check the companion status, then retry.`,
+        "CODEX_COMPANION_UNAVAILABLE",
+      );
+    default:
+      return build(
+        `${provider} (${model}) could not complete the request. Please Retry, or check the connection in Settings.`,
+        "CODEX_COMPLETION_FAILED",
+      );
+  }
+}
+
+async function requestCodexCompletion(settings, { messages, maxTokens }) {
+  if (!settings.codexModel) {
+    const error = new Error(aiProviderMissingMessage(settings));
+    error.code = "NO_AI_KEY";
+    throw error;
+  }
+  const result = await YTD_COMPANION.requestCompletion({
+    runtime: chrome.runtime,
+    model: settings.codexModel,
+    messages,
+    maxTokens,
+    timeoutMs: YTD_COMPANION.DEFAULT_COMPLETION_TIMEOUT_MS,
+  });
+  if (!result.ok) {
+    throw codexCompletionError(result.reason, settings.codexModel);
+  }
+  return { text: result.text, settings };
+}
+
+async function requestDeepSeekCompletion(
+  settings,
+  {
+    messages,
+    maxTokens,
+    temperature,
+    responseFormat,
+  },
+) {
   if (!settings.aiApiKey) {
-    const error = new Error(
-      "DeepSeek API key not configured. Open YouTube Digest Settings.",
-    );
+    const error = new Error(aiProviderMissingMessage(settings));
     error.code = "NO_AI_KEY";
     throw error;
   }
@@ -438,7 +582,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .then((settings) =>
         sendResponse({
           hasSupadataKey: !!settings.supadataApiKey,
-          hasAiKey: !!settings.aiApiKey,
+          hasAiKey: aiProviderConfigured(settings),
+          provider: settings.provider,
         }),
       )
       .catch((error) => sendResponse({ error: error.message }));
@@ -917,11 +1062,11 @@ async function handleAnalyzeTranscript(
 ) {
   try {
     const settings = await getSettings();
-    if (!settings.aiApiKey) {
+    if (!aiProviderConfigured(settings)) {
       return {
         success: false,
         error: "NO_AI_KEY",
-        message: "DeepSeek API key not configured. Open YouTube Digest Settings.",
+        message: aiProviderMissingMessage(settings),
       };
     }
 
@@ -1326,7 +1471,7 @@ async function cleanupNoteText(
   videoTitle,
 ) {
   const settings = await getSettings();
-  if (!settings.aiApiKey) {
+  if (!aiProviderConfigured(settings)) {
     return [beforeText, targetText, afterText].filter(Boolean).join(" ");
   }
 
@@ -1449,11 +1594,11 @@ async function handleExplainSelection(
 ) {
   try {
     const settings = await getSettings();
-    if (!settings.aiApiKey) {
+    if (!aiProviderConfigured(settings)) {
       return {
         success: false,
         error: "NO_AI_KEY",
-        message: "DeepSeek API key not configured.",
+        message: aiProviderMissingMessage(settings),
       };
     }
 
@@ -1620,8 +1765,12 @@ async function handleTranslateContent(
     }
 
     const settings = await getSettings();
-    if (!settings.aiApiKey) {
-      return { success: false, error: "DeepSeek API key not configured" };
+    if (!aiProviderConfigured(settings)) {
+      return {
+        success: false,
+        error: "NO_AI_KEY",
+        message: aiProviderMissingMessage(settings),
+      };
     }
 
     const sourceSegments = validateTranscriptBatchRequest(content);
@@ -1722,6 +1871,7 @@ globalThis.__YTD_TRANSLATION_TESTING__ = {
   normalizeTranslatedSegmentBatch,
   handleSaveNote,
   handleTranslateContent,
+  handleAnalyzeTranscript,
   closePanelForTab,
   updatePanelForTab,
 };

@@ -106,6 +106,7 @@ test("models.list answers with the catalog and the models capability", async () 
     "status",
     "auth",
     "models",
+    "completions",
   ]);
 
   const response = await call({ v: 1, type: "models.list" }, deps);
