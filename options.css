@@ -189,6 +189,77 @@ a {
   font-weight: 800;
 }
 
+.provider-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 4px 0 18px;
+}
+
+.provider-fields[hidden] {
+  display: none;
+}
+
+.codex-model-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.codex-model-heading {
+  font-weight: 700;
+}
+
+.codex-model-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.codex-model-list:empty {
+  display: none;
+}
+
+/* Shared choice-pill styling for the provider radios and the Codex model
+   radios; both are label-wrapped radio inputs created the same way. */
+.provider-option,
+.codex-model-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.provider-option:has(input[type="radio"]:checked),
+.codex-model-option:has(input[type="radio"]:checked) {
+  border-color: var(--accent);
+  background: #fdf6f2;
+}
+
+.provider-option input[type="radio"],
+.codex-model-option input[type="radio"] {
+  width: auto;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+input[type="radio"]:disabled {
+  cursor: not-allowed;
+}
+
 .provider-badge,
 .agent-badge {
   padding: 4px 9px;

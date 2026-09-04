@@ -6,14 +6,17 @@
  * JSON contract: every message is a UTF-8 JSON body prefixed with a 4-byte
  * little-endian length, per Chrome's native messaging framing.
  *
- * The host answers `status` and the account authorization requests
- * (`auth.begin`, `auth.cancel`, `disconnect`). Each native-messaging request
- * spawns a fresh host process, so pending authorization state lives in a
- * non-secret state file plus a detached auth worker, and the OAuth
- * credential lives only in the macOS Keychain. Model catalogs and
- * completions arrive in later protocol additions; every request type stays
- * inside this envelope so Settings can detect outdated companions through
- * the version negotiation and capability list.
+ * The host answers `status`, the account authorization requests
+ * (`auth.begin`, `auth.cancel`, `disconnect`), and the model catalog
+ * requests (`models.list`, `models.validate`). Each native-messaging
+ * request spawns a fresh host process, so pending authorization state
+ * lives in a non-secret state file plus a detached auth worker, and the
+ * OAuth credential lives only in the macOS Keychain. The catalog is
+ * companion-defined and carries no account data, so it is answered
+ * regardless of the account phase; completions arrive in a later protocol
+ * addition. Every request type stays inside this envelope so Settings can
+ * detect outdated companions through the version negotiation and
+ * capability list.
  */
 "use strict";
 
@@ -26,13 +29,14 @@ const {
   markOutcome,
 } = require("./auth-state.js");
 const { createKeychainStore } = require("./keychain.js");
+const models = require("./models.js");
 const { OAUTH, decodeIdTokenEmail, maskEmail, redact } = require("./oauth.js");
 
 const CONTRACT = Object.freeze({
   HOST_NAME: "com.youtube_digest.companion",
   PROTOCOL_VERSION: 1,
   SUPPORTED_PROTOCOL_VERSIONS: Object.freeze([1]),
-  CAPABILITIES: Object.freeze(["status", "auth"]),
+  CAPABILITIES: Object.freeze(["status", "auth", "models"]),
   MAX_INBOUND_MESSAGE_BYTES: 4 * 1024 * 1024,
   // Chrome closes the port when a host message exceeds 1 MB; stay below it.
   MAX_OUTBOUND_MESSAGE_BYTES: 900 * 1024,
@@ -293,6 +297,26 @@ async function handleRequest(request, deps = createDefaultDeps()) {
   }
   if (request.type === "disconnect") {
     return handleDisconnect(deps);
+  }
+  if (request.type === "models.list") {
+    return {
+      v: request.v,
+      ok: true,
+      type: "models.list",
+      models: models.CATALOG.map((model) => ({ ...model })),
+      defaultModel: models.DEFAULT_MODEL_ID,
+    };
+  }
+  if (request.type === "models.validate") {
+    // Shape-check first so junk never reaches the catalog; a well-formed id
+    // the companion cannot serve is the typed model-unavailable recovery
+    // path Settings relies on.
+    if (!models.isValidModelId(request.model)) {
+      return errorResponse("invalid-request");
+    }
+    const model = models.findModel(request.model);
+    if (!model) return errorResponse("model-unavailable");
+    return { v: request.v, ok: true, type: "models.validate", model };
   }
   return errorResponse("unknown-request-type");
 }

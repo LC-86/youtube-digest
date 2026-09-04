@@ -3,10 +3,11 @@
  * Codex companion over Chrome Native Messaging.
  *
  * The companion owns all sensitive work. This module classifies the
- * companion's observable state (ready, unavailable, incompatible) and its
+ * companion's observable state (ready, unavailable, incompatible), its
  * account authorization phase (signed-out, authorizing, connected,
- * reconnect-required) so Settings can render a status and trigger the
- * user-initiated actions: begin authorization, cancel, and disconnect.
+ * reconnect-required), and its model catalog, so Settings can render a
+ * status and trigger the user-initiated actions: begin authorization,
+ * cancel, disconnect, get models, and validate a saved model.
  *
  * It never handles credentials: responses are normalized through a
  * whitelist, so authorization URLs, codes, and tokens cannot reach
@@ -21,6 +22,8 @@ var YTD_COMPANION = (() => {
   const MAX_ERROR_CODE_LENGTH = 40;
   const MAX_CAPABILITY_LENGTH = 24;
   const MAX_ACCOUNT_LABEL_LENGTH = 64;
+  const MAX_MODEL_LABEL_LENGTH = 64;
+  const MAX_CATALOG_MODELS = 32;
 
   const STATUS = Object.freeze({
     CHECKING: "checking",
@@ -37,6 +40,7 @@ var YTD_COMPANION = (() => {
     HOST_NOT_RESPONDING: "host-not-responding",
     PROTOCOL_UNSUPPORTED: "protocol-unsupported",
     HOST_ERROR: "host-error",
+    CATALOG_MALFORMED: "catalog-malformed",
   });
 
   const AUTH_PHASE = Object.freeze({
@@ -61,6 +65,11 @@ var YTD_COMPANION = (() => {
     BEGIN: "auth.begin",
     CANCEL: "auth.cancel",
     DISCONNECT: "disconnect",
+  });
+
+  const MODELS_ACTIONS = Object.freeze({
+    LIST: "models.list",
+    VALIDATE: "models.validate",
   });
 
   function statusRequest() {
@@ -102,6 +111,47 @@ var YTD_COMPANION = (() => {
       auth.lastOutcome = value.lastOutcome;
     }
     return auth;
+  }
+
+  // Whitelists one catalog entry down to its canonical id and display
+  // label. Extra fields a host might add (endpoints, tokens) are dropped.
+  function sanitizeModel(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    if (
+      typeof value.id !== "string" ||
+      !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(value.id)
+    ) {
+      return null;
+    }
+    const model = { id: value.id };
+    if (value.label !== undefined) {
+      if (
+        typeof value.label !== "string" ||
+        value.label.length === 0 ||
+        value.label.length > MAX_MODEL_LABEL_LENGTH
+      ) {
+        return null;
+      }
+      model.label = value.label;
+    }
+    return model;
+  }
+
+  // A catalog is either fully well-formed or rejected as malformed: a
+  // partially usable list would let a broken host steer model selection.
+  // Duplicate ids and oversized lists fail the same way.
+  function sanitizeCatalog(value) {
+    if (!Array.isArray(value) || value.length === 0) return null;
+    if (value.length > MAX_CATALOG_MODELS) return null;
+    const models = [];
+    const seen = new Set();
+    for (const entry of value) {
+      const model = sanitizeModel(entry);
+      if (!model || seen.has(model.id)) return null;
+      seen.add(model.id);
+      models.push(model);
+    }
+    return models;
   }
 
   // Chrome reports native messaging failures through localized error text,
@@ -163,6 +213,7 @@ var YTD_COMPANION = (() => {
       hostVersion: normalizeHostVersion(response.companionVersion),
       capabilities,
       authSupported: capabilities.includes("auth"),
+      modelsSupported: capabilities.includes("models"),
       auth: sanitizeAuth(response.auth),
     };
   }
@@ -226,30 +277,38 @@ var YTD_COMPANION = (() => {
     return classifyStatusResponse(outcome.response);
   }
 
+  // Shared transport envelope for every one-shot request (auth and model
+  // actions alike). Resolves to { response } or { reason } for Settings.
+  async function sendContractRequest({ runtime, message, timeoutMs }) {
+    if (typeof runtime?.sendNativeMessage !== "function") {
+      return { reason: REASON.BROWSER_UNSUPPORTED };
+    }
+    const outcome = await requestWithTimeout({ runtime, message, timeoutMs });
+    if (outcome.reason) return { reason: outcome.reason };
+
+    const response = outcome.response;
+    if (!response || typeof response !== "object" || Array.isArray(response)) {
+      return { reason: REASON.HOST_ERROR };
+    }
+    if (hasUnsupportedProtocol(response)) {
+      return { reason: REASON.PROTOCOL_UNSUPPORTED };
+    }
+    return { response };
+  }
+
   // Shared path for auth.begin / auth.cancel / disconnect. Returns
   // { ok: true, auth } on success or { ok: false, reason } for Settings.
   async function runAuthAction(action, { runtime, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
-    if (typeof runtime?.sendNativeMessage !== "function") {
-      return { ok: false, reason: REASON.BROWSER_UNSUPPORTED };
-    }
-    const outcome = await requestWithTimeout({
+    const outcome = await sendContractRequest({
       runtime,
       message: { v: PROTOCOL_VERSION, type: action },
       timeoutMs,
     });
     if (outcome.reason) return { ok: false, reason: outcome.reason };
-
-    const response = outcome.response;
-    if (!response || typeof response !== "object" || Array.isArray(response)) {
-      return { ok: false, reason: REASON.HOST_ERROR };
+    if (outcome.response.ok !== true) {
+      return { ok: false, reason: normalizeErrorCode(outcome.response.error) };
     }
-    if (hasUnsupportedProtocol(response)) {
-      return { ok: false, reason: REASON.PROTOCOL_UNSUPPORTED };
-    }
-    if (response.ok !== true) {
-      return { ok: false, reason: normalizeErrorCode(response.error) };
-    }
-    const auth = sanitizeAuth(response.auth);
+    const auth = sanitizeAuth(outcome.response.auth);
     if (!auth) return { ok: false, reason: REASON.HOST_ERROR };
     return { ok: true, auth };
   }
@@ -266,6 +325,53 @@ var YTD_COMPANION = (() => {
     return runAuthAction(AUTH_ACTIONS.DISCONNECT, options);
   }
 
+  // Shared validation path for models.list and models.validate on top of
+  // sendContractRequest. Returns { ok: true, ...payload } or
+  // { ok: false, reason } with the same reason vocabulary as the auth
+  // actions, plus catalog-malformed when an ok:true host reply still fails
+  // the catalog whitelist.
+  async function runModelsAction(action, { runtime, model, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+    const message = { v: PROTOCOL_VERSION, type: action };
+    if (action === MODELS_ACTIONS.VALIDATE) {
+      message.model = model;
+    }
+    const outcome = await sendContractRequest({ runtime, message, timeoutMs });
+    if (outcome.reason) return { ok: false, reason: outcome.reason };
+
+    const response = outcome.response;
+    if (response.ok !== true) {
+      return { ok: false, reason: normalizeErrorCode(response.error) };
+    }
+    if (action === MODELS_ACTIONS.LIST) {
+      const models = sanitizeCatalog(response.models);
+      if (!models) return { ok: false, reason: REASON.CATALOG_MALFORMED };
+      // Reuse the entry sanitizer as a bare-id predicate: the default is
+      // only reported when it is a well-formed member of the catalog.
+      const defaultModel =
+        typeof response.defaultModel === "string"
+          ? sanitizeModel({ id: response.defaultModel })
+          : null;
+      return {
+        ok: true,
+        models,
+        defaultModel: defaultModel && models.some((entry) => entry.id === defaultModel.id)
+          ? defaultModel.id
+          : null,
+      };
+    }
+    const validated = sanitizeModel(response.model);
+    if (!validated) return { ok: false, reason: REASON.HOST_ERROR };
+    return { ok: true, model: validated };
+  }
+
+  function requestModelCatalog(options) {
+    return runModelsAction(MODELS_ACTIONS.LIST, options);
+  }
+
+  function validateModel({ model, ...options } = {}) {
+    return runModelsAction(MODELS_ACTIONS.VALIDATE, { ...options, model });
+  }
+
   return {
     HOST_NAME,
     PROTOCOL_VERSION,
@@ -277,15 +383,20 @@ var YTD_COMPANION = (() => {
     AUTH_PHASES,
     AUTH_OUTCOMES,
     AUTH_ACTIONS,
+    MODELS_ACTIONS,
     statusRequest,
     classifyChromeError,
     classifyStatusResponse,
     normalizeCapabilities,
     sanitizeAuth,
+    sanitizeModel,
+    sanitizeCatalog,
     checkStatus,
     beginAuthorization,
     cancelAuthorization,
     disconnectAccount,
+    requestModelCatalog,
+    validateModel,
   };
 })();
 

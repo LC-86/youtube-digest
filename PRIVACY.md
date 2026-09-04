@@ -44,7 +44,7 @@ Those services process data under their own terms, privacy policies, retention p
 
 YouTube Digest can talk to an optional companion app that you install on your Mac from the repository. The extension reaches it only through Chrome Native Messaging, and the companion accepts only YouTube Digest's fixed extension identity.
 
-The exchange covers the companion's local status (installed, compatible, reachable), the account connection state (not signed in, authorizing, connected, reconnect required), and the user-initiated actions sign in, cancel, and disconnect. These messages contain no browsing data, transcripts, or credentials: the extension never receives the authorization URL, the authorization code, any token, or a raw account identifier. At most it receives a masked account label, for example `j•••@e•••.com`.
+The exchange covers the companion's local status (installed, compatible, reachable), the account connection state (not signed in, authorizing, connected, reconnect required), the user-initiated actions sign in, cancel, and disconnect, and the model catalog: the companion's fixed list of Codex model names plus a check of whether a saved model is still offered. These messages contain no browsing data, transcripts, or credentials: the extension never receives the authorization URL, the authorization code, any token, or a raw account identifier. At most it receives a masked account label, for example `j•••@e•••.com`. The catalog is defined by the companion itself, not read from your account, and listing a model never proves your ChatGPT plan includes it.
 
 When you sign in, the companion opens the ChatGPT authorization page in your browser, receives the OAuth callback on a loopback port on your Mac, and stores the resulting refresh credential only in the macOS Keychain. During sign-in, your browser exchanges account credentials directly with OpenAI; YouTube Digest and the companion never see your password. The companion keeps a small local state file with the connection phase and a typed outcome (for example "expired" or "denied"); it contains no credentials.
 
@@ -55,6 +55,7 @@ AI requests through the companion arrive in a following update and will be docum
 YouTube Digest uses Chrome's local extension storage, not a YouTube Digest cloud service.
 
 - Supadata and DeepSeek settings and API keys remain on the device in Chrome's extension storage.
+- The selected AI provider (DeepSeek or ChatGPT / Codex) and the saved Codex model name are non-secret settings kept in the same local extension storage.
 - The ChatGPT / Codex sign-in credential managed by the optional companion stays in the macOS Keychain, never in extension storage. Remove it with the Disconnect action in Settings; the extension's own data reset cannot delete it.
 - Saved notes remain until you delete them or remove/clear the extension's data. The extension keeps up to 100 notes.
 - Recent transcript, digest, and per-segment translation cache entries are stored
@@ -80,7 +81,7 @@ YouTube Digest uses Chrome permissions for these purposes:
 - `storage`: store settings, keys, notes, and cached results locally.
 - `tabs`: identify and interact with the active YouTube tab.
 - `scripting`: coordinate the extension's YouTube page controls.
-- `nativeMessaging`: exchange local status and account-connection messages with the optional macOS companion you installed; Chrome restricts the connection to that companion's registered identity.
+- `nativeMessaging`: exchange local status, account-connection, and model-catalog messages with the optional macOS companion you installed; Chrome restricts the connection to that companion's registered identity.
 - YouTube host access: read the active video's URL and metadata and provide timestamp controls.
 - Supadata host access: retrieve transcripts.
 - DeepSeek host access: provide AI overviews, explanations, translation, and note polishing through DeepSeek V4 Flash.

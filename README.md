@@ -101,7 +101,7 @@ Keys and settings are stored in Chrome's local extension storage on your device.
 
 YouTube Digest can also work with a ChatGPT / Codex subscription instead of a DeepSeek API key. The connection runs through a small companion app that lives on your Mac, and the extension talks to it only through Chrome Native Messaging. You never enter an OpenAI API key, token, or password in the extension.
 
-This update adds account sign-in. Settings can confirm that the companion is present, compatible, and reachable, and once it is Ready you can sign in with your ChatGPT account. Using the connection for AI features arrives in a following update; until then, they continue to use DeepSeek.
+This update adds account sign-in and model selection. Settings can confirm that the companion is present, compatible, and reachable; once it is Ready you can sign in with your ChatGPT account and pick one of the companion's Codex models. Using the selected model for AI features arrives in a following update; until then, they continue to use DeepSeek.
 
 ### Install the companion
 
@@ -139,7 +139,20 @@ Recovery is explicit:
 - **Reconnect required** means the stored sign-in stopped working, for example after a password change. Sign in again, or disconnect.
 - **Disconnect** deletes the stored credential from your Keychain and returns the card to Not signed in. Resetting extension data in Chrome does not remove this credential, because the Keychain entry belongs to the companion, not the extension; use Disconnect instead.
 
-Model selection and AI requests through the connection arrive in a following update.
+### Choose a Codex model
+
+After signing in, open the **AI provider** card in Settings and select **ChatGPT / Codex**:
+
+1. Select **Get models**. The installed companion returns its list of Codex models by canonical name.
+2. Pick one model and select **Save settings**. The choice stays in this Chrome profile, so reopening Settings restores the selected provider and model, and your DeepSeek key keeps its own value untouched.
+3. Switching between DeepSeek and ChatGPT / Codex is one selection; the other side's settings are never deleted, so you can switch back without signing in again.
+
+Two things the list does not promise:
+
+- The list comes from the companion, not from your account, so a listed model is not guaranteed to be included in your ChatGPT plan. The first real request decides; if it reports the model as unavailable, select Get models, choose another model, or sign in again.
+- If the installed companion stops offering your saved model, Settings says so when it opens and points you back to Get models.
+
+AI requests through the connection arrive in a following update; until then, AI features continue to use DeepSeek.
 
 ## Use YouTube Digest
 
@@ -159,7 +172,7 @@ Model selection and AI requests through the connection arrive in a following upd
 - AI overviews, selected-text explanations, translation, and automatic note polishing.
 - Local notes and a local cache for recent transcript and digest results.
 - DeepSeek V4 Flash for all published AI features. Other providers require a local code adaptation and are not supported by this published version.
-- An optional macOS companion for ChatGPT / Codex can be installed; Settings shows whether it is Ready, Unavailable, or Incompatible, and when Ready you can sign in with your ChatGPT account, cancel, reconnect, or disconnect it. AI requests through the connection arrive in a following update.
+- An optional macOS companion for ChatGPT / Codex can be installed; Settings shows whether it is Ready, Unavailable, or Incompatible, and when Ready you can sign in with your ChatGPT account, cancel, reconnect, or disconnect it, and load the companion's Codex model list to pick and save one model. AI requests through the connection arrive in a following update.
 
 Shorts, live streams, private or access-restricted videos, and videos without an available native transcript may not work. Firefox, Safari, mobile browsers, and other Chromium browsers are not currently tested or supported.
 

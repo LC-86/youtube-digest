@@ -27,6 +27,24 @@ const YTD_OPTIONS = (() => {
       privacyNote:
         "When you use AI features, DeepSeek receives the video transcript and relevant video context. Review DeepSeek's terms and pricing before saving.",
       saveSettings: "Save settings",
+      codexModelLabel: "ChatGPT / Codex model",
+      codexGetModels: "Get models",
+      codexModelsLoading: "Loading models…",
+      codexModelsLoaded: ({ count }) =>
+        `${count} model${count === 1 ? "" : "s"} available.`,
+      codexModelsFailed:
+        "Could not load the model list. Check the companion status, then try Get models again.",
+      codexConnectFirst:
+        "Finish the ChatGPT / Codex sign-in below, then select Get models.",
+      codexCompanionFirst:
+        "Set up the ChatGPT / Codex companion below, then sign in and get models.",
+      companionModelsUnsupportedDetail:
+        "The installed companion does not provide a model list yet. Update it by re-running the installer from the latest YouTube Digest folder, then check again.",
+      codexModelUnavailable: ({ model }) =>
+        `The saved model ${model} is not offered by the installed companion. Select Get models and choose a different model.`,
+      codexEntitlementNote:
+        "The list comes from the installed companion, not from your account: a listed model is not guaranteed to be included in your ChatGPT plan. If a request reports the model as unavailable, select Get models, choose another model, or sign in again.",
+      selectCodexModel: "Choose a model from the list before saving.",
       companionTitle: "ChatGPT / Codex companion",
       companionIntro:
         "Optional macOS helper that connects YouTube Digest to a ChatGPT / Codex subscription through Chrome Native Messaging. No API key or token is entered in the extension.",
@@ -160,6 +178,20 @@ const YTD_OPTIONS = (() => {
       privacyNote:
         "使用 AI 功能时，DeepSeek 会收到视频字幕及相关视频上下文。保存前请查看 DeepSeek 的服务条款和价格。",
       saveSettings: "保存设置",
+      codexModelLabel: "ChatGPT / Codex 模型",
+      codexGetModels: "获取模型",
+      codexModelsLoading: "正在加载模型…",
+      codexModelsLoaded: ({ count }) => `已加载 ${count} 个可用模型。`,
+      codexModelsFailed: "无法加载模型列表。请先检查本地伴侣状态，然后重新获取模型。",
+      codexConnectFirst: "请先在下方完成 ChatGPT / Codex 登录，再获取模型。",
+      codexCompanionFirst: "请先在下方安装并就绪本地伴侣，登录后即可获取模型。",
+      companionModelsUnsupportedDetail:
+        "已安装的伴侣还不提供模型列表。请在最新的 YouTube Digest 文件夹重新运行安装脚本进行更新，然后再检查一次。",
+      codexModelUnavailable: ({ model }) =>
+        `已保存的模型 ${model} 不在当前本地伴侣提供的列表中。请重新获取模型并另选一个。`,
+      codexEntitlementNote:
+        "该列表来自本地伴侣而非你的账号：列出的模型不保证包含在你的 ChatGPT 套餐中。如果请求提示模型不可用，请重新获取模型、另选一个，或重新登录。",
+      selectCodexModel: "保存前请先从列表中选择一个模型。",
       companionTitle: "ChatGPT / Codex 本地伴侣",
       companionIntro:
         "可选的 macOS 本地助手，通过 Chrome Native Messaging 把 YouTube Digest 连接到 ChatGPT / Codex 订阅。不需要在扩展中填写任何 API 密钥或令牌。",
@@ -605,6 +637,31 @@ const YTD_OPTIONS = (() => {
     };
   }
 
+  // Maps the companion connection state to the Codex model picker view in
+  // the AI provider card. Render-only data like describeAccountView: the
+  // picker unlocks only when the installed companion both supports the
+  // catalog and has a connected account; every not-ready case gets one
+  // actionable hint instead of a dead control.
+  function describeCodexModelView({
+    companionState,
+    modelsSupported = false,
+    authPhase,
+  } = {}) {
+    if (companionState === "ready") {
+      if (!modelsSupported) {
+        return {
+          pickerEnabled: false,
+          hintKey: "companionModelsUnsupportedDetail",
+        };
+      }
+      if (authPhase === "connected") {
+        return { pickerEnabled: true, hintKey: null };
+      }
+      return { pickerEnabled: false, hintKey: "codexConnectFirst" };
+    }
+    return { pickerEnabled: false, hintKey: "codexCompanionFirst" };
+  }
+
   function initialize(root = globalThis) {
     const doc = root.document;
     const settingsApi = root.YTD_SETTINGS;
@@ -618,6 +675,15 @@ const YTD_OPTIONS = (() => {
     const form = doc.getElementById("settingsForm");
     const aiApiKeyInput = doc.getElementById("aiApiKey");
     const supadataApiKeyInput = doc.getElementById("supadataApiKey");
+    const providerRadios = [
+      ...doc.querySelectorAll('input[name="aiProvider"]'),
+    ];
+    const deepseekFields = doc.getElementById("deepseekFields");
+    const codexFields = doc.getElementById("codexFields");
+    const codexModelList = doc.getElementById("codexModelList");
+    const codexGetModelsBtn = doc.getElementById("codexGetModelsBtn");
+    const codexModelStatus = doc.getElementById("codexModelStatus");
+    const codexModelHint = doc.getElementById("codexModelHint");
     const companionCard = doc.getElementById("companionCard");
     const companionBadge = doc.getElementById("companionBadge");
     const companionDetail = doc.getElementById("companionDetail");
@@ -644,6 +710,13 @@ const YTD_OPTIONS = (() => {
     let lastAccountView = { visible: false, phase: "hidden" };
     let authPollTimer = null;
     let companionActionInFlight = false;
+    // Provider and saved model are non-secret settings; the picker state is
+    // derived from the live companion status on every render.
+    let persistedCodexModel = "";
+    let codexModelKnownUnavailable = false;
+    let lastCompanionStatus = null;
+    let codexModelsInFlight = false;
+    let savedCodexModelChecked = false;
 
     function renderStatus(element) {
       const state = statusStates.get(element);
@@ -696,6 +769,17 @@ const YTD_OPTIONS = (() => {
       renderAccountView(lastAccountView);
     }
 
+    function selectedProvider() {
+      const checked = providerRadios.find((radio) => radio.checked);
+      return checked?.value === "codex" ? "codex" : "deepseek";
+    }
+
+    function applyProviderSections(provider) {
+      if (deepseekFields) deepseekFields.hidden = provider !== "deepseek";
+      if (codexFields) codexFields.hidden = provider !== "codex";
+      renderCodexModelView(codexModelViewFromStatus());
+    }
+
     async function loadSettings() {
       try {
         const stored = await storage.get(settingsApi.STORAGE_KEY);
@@ -706,6 +790,20 @@ const YTD_OPTIONS = (() => {
 
         aiApiKeyInput.value = settings.aiApiKey;
         supadataApiKeyInput.value = settings.supadataApiKey;
+        for (const radio of providerRadios) {
+          radio.checked = radio.value === settings.provider;
+        }
+        persistedCodexModel = settings.codexModel;
+        applyProviderSections(settings.provider);
+        // Restoring the saved choice must not depend on a live companion:
+        // seed the picker with the saved id alone; Get models replaces it
+        // with the full labeled catalog when the user asks.
+        if (persistedCodexModel) {
+          renderCodexModelOptions(
+            [{ id: persistedCodexModel }],
+            persistedCodexModel,
+          );
+        }
         if (migration.migrated) {
           await storage.set({ [settingsApi.STORAGE_KEY]: settings });
           setStatus(saveStatus, "migrationWarning");
@@ -730,21 +828,43 @@ const YTD_OPTIONS = (() => {
       setStatus(saveStatus, "saving");
 
       const settings = settingsApi.normalize({
+        provider: selectedProvider(),
         aiApiKey: aiApiKeyInput.value,
         supadataApiKey: supadataApiKeyInput.value,
+        codexModel: selectedCodexModel() || persistedCodexModel,
       });
 
       if (!settings.supadataApiKey) {
         setStatus(saveStatus, "addSupadataKey");
         return;
       }
-      if (!settings.aiApiKey) {
+      // Each provider guards its own credential or choice; saving one
+      // never requires the other's fields to be present.
+      if (settings.provider === "deepseek" && !settings.aiApiKey) {
         setStatus(saveStatus, "addDeepseekKey");
+        return;
+      }
+      if (settings.provider === "codex" && !settings.codexModel) {
+        setStatus(saveStatus, "selectCodexModel");
+        return;
+      }
+      // A model the companion already reported unavailable cannot be
+      // quietly re-saved; the recovery path is picking a different one.
+      if (
+        settings.provider === "codex" &&
+        codexModelKnownUnavailable &&
+        settings.codexModel === persistedCodexModel
+      ) {
+        setStatus(saveStatus, "codexModelUnavailable", {
+          model: persistedCodexModel,
+        });
         return;
       }
 
       try {
         await storage.set({ [settingsApi.STORAGE_KEY]: settings });
+        persistedCodexModel = settings.codexModel;
+        codexModelKnownUnavailable = false;
         setStatus(saveStatus, "saved");
       } catch (_error) {
         setStatus(saveStatus, "saveFailed");
@@ -842,6 +962,131 @@ const YTD_OPTIONS = (() => {
       }
     }
 
+    // ------------------------------------------------------ codex models
+
+    function codexModelViewFromStatus() {
+      return describeCodexModelView({
+        companionState: lastCompanionStatus?.state,
+        modelsSupported: lastCompanionStatus?.modelsSupported === true,
+        authPhase: lastCompanionStatus?.auth?.phase,
+      });
+    }
+
+    function renderCodexModelView(view) {
+      if (codexGetModelsBtn) {
+        codexGetModelsBtn.disabled = !view.pickerEnabled || codexModelsInFlight;
+      }
+      for (const input of codexModelList?.querySelectorAll(
+        'input[name="codexModel"]',
+      ) ?? []) {
+        input.disabled = !view.pickerEnabled;
+      }
+      setStatus(codexModelHint, view.hintKey);
+    }
+
+    // Rebuilds the picker from a catalog while keeping the saved selection
+    // when the companion still offers it; otherwise the catalog's default
+    // becomes the visible suggestion. The saved value in storage is never
+    // overwritten by rendering alone.
+    function renderCodexModelOptions(models, defaultModelId) {
+      if (!codexModelList || models.length === 0) return;
+      const enabled = codexModelViewFromStatus().pickerEnabled;
+      const previous =
+        selectedCodexModel() ||
+        (models.some((model) => model.id === persistedCodexModel)
+          ? persistedCodexModel
+          : "");
+      const selected =
+        previous && models.some((model) => model.id === previous)
+          ? previous
+          : defaultModelId && models.some((model) => model.id === defaultModelId)
+            ? defaultModelId
+            : models[0].id;
+
+      codexModelList.innerHTML = "";
+      for (const model of models) {
+        const label = doc.createElement("label");
+        label.className = "codex-model-option";
+        const input = doc.createElement("input");
+        input.type = "radio";
+        input.name = "codexModel";
+        input.value = model.id;
+        input.checked = model.id === selected;
+        input.disabled = !enabled;
+        const text = doc.createElement("span");
+        // The canonical id is always visible; the label is a friendly
+        // prefix only, so a saved choice stays unambiguous.
+        text.textContent =
+          model.label && model.label !== model.id
+            ? `${model.label} (${model.id})`
+            : model.id;
+        label.append(input, text);
+        codexModelList.appendChild(label);
+      }
+    }
+
+    function selectedCodexModel() {
+      const checked = codexModelList?.querySelector(
+        'input[name="codexModel"]:checked',
+      );
+      return checked?.value || "";
+    }
+
+    async function loadCodexModels() {
+      if (!companionApi || codexModelsInFlight) return;
+      codexModelsInFlight = true;
+      renderCodexModelView({ pickerEnabled: false, hintKey: null });
+      setStatus(codexModelStatus, "codexModelsLoading");
+      try {
+        const result = await companionApi.requestModelCatalog({
+          runtime: root.chrome?.runtime,
+        });
+        if (result.ok) {
+          renderCodexModelOptions(result.models, result.defaultModel);
+          setStatus(codexModelStatus, "codexModelsLoaded", {
+            count: result.models.length,
+          });
+        } else {
+          setStatus(codexModelStatus, "codexModelsFailed");
+        }
+      } catch (_error) {
+        setStatus(codexModelStatus, "codexModelsFailed");
+      } finally {
+        codexModelsInFlight = false;
+        renderCodexModelView(codexModelViewFromStatus());
+      }
+    }
+
+    // One validate call per saved model: Settings reports the typed
+    // model-unavailable recovery path when the installed companion no
+    // longer offers what storage holds.
+    async function checkSavedCodexModel() {
+      if (savedCodexModelChecked || !companionApi) return;
+      if (selectedProvider() !== "codex" || !persistedCodexModel) return;
+      if (
+        lastCompanionStatus?.state !== "ready" ||
+        lastCompanionStatus?.modelsSupported !== true ||
+        lastCompanionStatus?.auth?.phase !== "connected"
+      ) {
+        return;
+      }
+      savedCodexModelChecked = true;
+      try {
+        const result = await companionApi.validateModel({
+          runtime: root.chrome?.runtime,
+          model: persistedCodexModel,
+        });
+        if (result.ok === false && result.reason === "model-unavailable") {
+          codexModelKnownUnavailable = true;
+          setStatus(codexModelStatus, "codexModelUnavailable", {
+            model: persistedCodexModel,
+          });
+        }
+      } catch (_error) {
+        // Validation is advisory; the picker stays usable.
+      }
+    }
+
     function syncAuthPolling(phase) {
       const shouldPoll = phase === "authorizing";
       if (shouldPoll && authPollTimer === null) {
@@ -891,6 +1136,7 @@ const YTD_OPTIONS = (() => {
       const result = await companionApi.checkStatus({
         runtime: root.chrome?.runtime,
       });
+      lastCompanionStatus = result;
       renderCompanionStatus(result);
       renderAccountView(
         describeAccountView({
@@ -901,10 +1147,21 @@ const YTD_OPTIONS = (() => {
           accountLabel: result.auth?.accountLabel ?? null,
         }),
       );
+      renderCodexModelView(codexModelViewFromStatus());
+      void checkSavedCodexModel();
       syncAuthPolling(result.auth?.phase);
     }
 
     form.addEventListener("submit", saveSettings);
+    for (const radio of providerRadios) {
+      radio.addEventListener("change", () => {
+        applyProviderSections(selectedProvider());
+        void checkSavedCodexModel();
+      });
+    }
+    codexGetModelsBtn?.addEventListener("click", () => {
+      void loadCodexModels();
+    });
     copyCustomizationPromptBtn.addEventListener(
       "click",
       copyCustomizationPrompt,
@@ -951,6 +1208,7 @@ const YTD_OPTIONS = (() => {
     createPromptDrafts,
     createStorageAdapter,
     describeAccountView,
+    describeCodexModelView,
     describeCompanionStatus,
     normalizeLanguage,
     persistPreferredLanguage,

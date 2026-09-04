@@ -76,44 +76,105 @@
         <section class="card">
           <h2 data-i18n="aiProvider">AI provider</h2>
           <div
-            class="provider-summary"
-            aria-label="Supported AI provider"
-            data-i18n-aria-label="providerSummaryLabel"
+            class="provider-options"
+            role="radiogroup"
+            aria-label="AI provider"
+            data-i18n-aria-label="aiProvider"
           >
-            <span class="provider-name">DeepSeek V4 Flash</span>
-            <span class="provider-badge" data-i18n="providerBadge"
-              >Supported in this version</span
-            >
+            <label class="provider-option">
+              <input type="radio" name="aiProvider" value="deepseek" checked />
+              <span>DeepSeek</span>
+            </label>
+            <label class="provider-option">
+              <input type="radio" name="aiProvider" value="codex" />
+              <span>ChatGPT / Codex</span>
+            </label>
           </div>
 
-          <label for="aiApiKey" data-i18n="deepseekApiKeyLabel"
-            >DeepSeek API key</label
-          >
-          <input
-            id="aiApiKey"
-            name="aiApiKey"
-            type="password"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="Paste your DeepSeek key"
-          />
-          <p class="help">
-            <span data-i18n="deepseekHelp"
-              >YouTube Digest uses DeepSeek V4 Flash for overviews,
-              explanations, translation, and note polishing.</span
+          <div id="deepseekFields" class="provider-fields">
+            <div
+              class="provider-summary"
+              aria-label="Supported AI provider"
+              data-i18n-aria-label="providerSummaryLabel"
             >
-            <a
-              href="https://platform.deepseek.com/api_keys"
-              target="_blank"
-              rel="noreferrer"
-              data-i18n="deepseekLink"
-              >Create a DeepSeek API key</a
-            ><span data-i18n="deepseekHelpSuffix">.</span>
-          </p>
-          <div class="privacy-note" data-i18n="privacyNote">
-            When you use AI features, DeepSeek receives the video transcript
-            and relevant video context. Review DeepSeek's terms and pricing
-            before saving.
+              <span class="provider-name">DeepSeek V4 Flash</span>
+              <span class="provider-badge" data-i18n="providerBadge"
+                >Supported in this version</span
+              >
+            </div>
+
+            <label for="aiApiKey" data-i18n="deepseekApiKeyLabel"
+              >DeepSeek API key</label
+            >
+            <input
+              id="aiApiKey"
+              name="aiApiKey"
+              type="password"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="Paste your DeepSeek key"
+            />
+            <p class="help">
+              <span data-i18n="deepseekHelp"
+                >YouTube Digest uses DeepSeek V4 Flash for overviews,
+                explanations, translation, and note polishing.</span
+              >
+              <a
+                href="https://platform.deepseek.com/api_keys"
+                target="_blank"
+                rel="noreferrer"
+                data-i18n="deepseekLink"
+                >Create a DeepSeek API key</a
+              ><span data-i18n="deepseekHelpSuffix">.</span>
+            </p>
+            <div class="privacy-note" data-i18n="privacyNote">
+              When you use AI features, DeepSeek receives the video transcript
+              and relevant video context. Review DeepSeek's terms and pricing
+              before saving.
+            </div>
+          </div>
+
+          <div id="codexFields" class="provider-fields" hidden>
+            <div class="codex-model-row">
+              <span
+                class="codex-model-heading"
+                id="codexModelLabel"
+                data-i18n="codexModelLabel"
+                >ChatGPT / Codex model</span
+              >
+              <button
+                id="codexGetModelsBtn"
+                type="button"
+                data-i18n="codexGetModels"
+                disabled
+              >
+                Get models
+              </button>
+            </div>
+            <div
+              id="codexModelList"
+              class="codex-model-list"
+              role="radiogroup"
+              aria-labelledby="codexModelLabel"
+            ></div>
+            <p
+              id="codexModelStatus"
+              class="companion-detail"
+              role="status"
+              aria-live="polite"
+            ></p>
+            <p
+              id="codexModelHint"
+              class="help"
+              role="status"
+              aria-live="polite"
+            ></p>
+            <div class="privacy-note" data-i18n="codexEntitlementNote">
+              The list comes from the installed companion, not from your
+              account: a listed model is not guaranteed to be included in your
+              ChatGPT plan. If a request reports the model as unavailable,
+              select Get models, choose another model, or sign in again.
+            </div>
           </div>
         </section>
 

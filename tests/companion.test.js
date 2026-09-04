@@ -48,7 +48,7 @@ test("status contract reports ready for a compatible companion", async () => {
       status: "ready",
       protocol: 1,
       companionVersion: "1.2.0",
-      capabilities: ["status", "auth"],
+      capabilities: ["status", "auth", "models"],
       auth: { phase: "signed-out" },
     },
   });
@@ -59,8 +59,9 @@ test("status contract reports ready for a compatible companion", async () => {
     state: "ready",
     protocol: 1,
     hostVersion: "1.2.0",
-    capabilities: ["status", "auth"],
+    capabilities: ["status", "auth", "models"],
     authSupported: true,
+    modelsSupported: true,
     auth: { phase: "signed-out" },
   });
   assert.deepEqual(runtime.calls, [
@@ -208,7 +209,7 @@ test("host speaks the framed status contract over stdio", async () => {
     assert.equal(response.status, "ready");
     assert.equal(response.protocol, 1);
     assert.match(response.companionVersion, /^\d+\.\d+\.\d+$/);
-    assert.deepEqual(response.capabilities, ["status", "auth"]);
+    assert.deepEqual(response.capabilities, ["status", "auth", "models"]);
     assert.equal(response.auth.phase, "signed-out");
   } finally {
     child.kill();
