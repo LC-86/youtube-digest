@@ -139,7 +139,8 @@ const YTD_OPTIONS = (() => {
       migrationWarning:
         "Custom provider settings were removed safely. Your Supadata key was kept, but the AI key was cleared. Enter a DeepSeek API key to continue.",
       saving: "Saving…",
-      addSupadataKey: "Add a Supadata API key.",
+      savedWithoutSupadataKey:
+        "Saved. Add a Supadata API key before fetching video transcripts; ChatGPT / Codex does not replace the transcript service.",
       addDeepseekKey: "Add a DeepSeek API key.",
       saved: "Saved. Reopen YouTube Digest to use these settings.",
       saveFailed: "Could not save settings. Please try again.",
@@ -281,7 +282,8 @@ const YTD_OPTIONS = (() => {
       migrationWarning:
         "已安全移除自定义服务设置。Supadata 密钥已保留，AI 密钥已清除。请输入 DeepSeek API 密钥以继续使用。",
       saving: "正在保存…",
-      addSupadataKey: "请添加 Supadata API 密钥。",
+      savedWithoutSupadataKey:
+        "已保存。获取视频字幕前仍需添加 Supadata API 密钥；ChatGPT / Codex 不替代字幕服务。",
       addDeepseekKey: "请添加 DeepSeek API 密钥。",
       saved: "已保存。请重新打开 YouTube Digest 以使用这些设置。",
       saveFailed: "无法保存设置，请重试。",
@@ -834,10 +836,8 @@ const YTD_OPTIONS = (() => {
         codexModel: selectedCodexModel() || persistedCodexModel,
       });
 
-      if (!settings.supadataApiKey) {
-        setStatus(saveStatus, "addSupadataKey");
-        return;
-      }
+      // Transcript setup is independent of AI settings. The transcript
+      // request checks its own key; a missing key must not discard a model choice.
       // Each provider guards its own credential or choice; saving one
       // never requires the other's fields to be present.
       if (settings.provider === "deepseek" && !settings.aiApiKey) {
@@ -865,7 +865,10 @@ const YTD_OPTIONS = (() => {
         await storage.set({ [settingsApi.STORAGE_KEY]: settings });
         persistedCodexModel = settings.codexModel;
         codexModelKnownUnavailable = false;
-        setStatus(saveStatus, "saved");
+        setStatus(
+          saveStatus,
+          settings.supadataApiKey ? "saved" : "savedWithoutSupadataKey",
+        );
       } catch (_error) {
         setStatus(saveStatus, "saveFailed");
       }
