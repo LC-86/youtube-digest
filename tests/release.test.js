@@ -463,6 +463,7 @@ test("manual acceptance record ships with the seven required checks", () => {
     "DeepSeek regression",
     "Disconnect",
   ]) {
-    assert.match(record, new RegExp(`- \\[ \\] ${step}`));
+    // Boxes may be checked once manual acceptance passes.
+    assert.match(record, new RegExp(`- \\[( |x)\\] ${step}`));
   }
 });

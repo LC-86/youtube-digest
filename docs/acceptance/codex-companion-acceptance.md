@@ -1,8 +1,9 @@
 # ChatGPT / Codex companion release acceptance record
 
-- Issue: LC-86/youtube-digest#7 (parent #1)
+- Issue: LC-86/youtube-digest#7 (parent #1; this record gates closing #1)
 - Scope: release readiness of the local ChatGPT / Codex connection: companion installation, authorization, model selection, AI actions, DeepSeek fallback, and disconnect.
 - Record opened: 2026-09-04
+- Record completed: 2026-09-05
 - Machine: macOS arm64 (darwin 25.5.0), Node.js v24.19.0
 
 ## Automated verification
@@ -32,28 +33,30 @@ Completed on 2026-09-04 on a development Mac. The installer smoke test used an i
 
 ## Manual acceptance checklist (requires a real ChatGPT account)
 
-These steps need the user's real ChatGPT account, this Mac's Chrome, and a real YouTube video. They are deliberately manual: no automated step may hold real account credentials. Work through them in order and record the date and outcome below. Issue #7 stays open until every row is Pass.
+These steps need the user's real ChatGPT account, this Mac's Chrome, and a real YouTube video. They are deliberately manual: no automated step may hold real account credentials. Work through them in order and record the date and outcome below. Parent issue #1 stays open until every row is Pass.
 
-- [ ] Helper installation in the real Chrome profile: run `bash companion/install.sh`, reload the unpacked extension at `chrome://extensions`, reopen YouTube Digest Settings, and confirm the companion card shows Ready.
-- [ ] Real ChatGPT login: choose Sign in with ChatGPT, approve in the browser, and confirm Settings shows Connected with a masked account label.
-- [ ] Model selection: choose Get models, pick one Codex model, and Save settings.
-- [ ] Real-video Digest: open a captioned YouTube video and generate the overview through the selected model.
-- [ ] One remaining AI action: explain selected transcript text (or translate a section) through ChatGPT / Codex.
-- [ ] DeepSeek regression: switch the AI provider back to DeepSeek and generate an overview again with the existing API key.
-- [ ] Disconnect: choose Disconnect in Settings, confirm the card returns to not signed in, and optionally confirm `security find-generic-password -s com.youtube_digest.companion` reports the item could not be found.
+- [x] Helper installation in the real Chrome profile: run `bash companion/install.sh`, reload the unpacked extension at `chrome://extensions`, reopen YouTube Digest Settings, and confirm the companion card shows Ready.
+- [x] Real ChatGPT login: choose Sign in with ChatGPT, approve in the browser, and confirm Settings shows Connected with a masked account label.
+- [x] Model selection: choose Get models, pick one Codex model, and Save settings.
+- [x] Real-video Digest: open a captioned YouTube video and generate the overview through the selected model.
+- [x] One remaining AI action: explain selected transcript text (or translate a section) through ChatGPT / Codex.
+- [x] DeepSeek regression: switch the AI provider back to DeepSeek and generate an overview again with the existing API key.
+- [x] Disconnect: choose Disconnect in Settings, confirm the card returns to not signed in, and optionally confirm `security find-generic-password -s com.youtube_digest.companion` reports the item could not be found.
 
 ## Result log
 
 | Step | Date | Result | Notes |
 | --- | --- | --- | --- |
 | Automated checks (table above) | 2026-09-04 | Pass | see Automated verification |
-| Helper installation (real Chrome profile) | | | |
-| Real ChatGPT login | | | |
-| Model selection | | | |
-| Real-video Digest | | | |
-| Remaining AI action | | | |
-| DeepSeek regression | | | |
-| Disconnect | | | |
+| Helper installation (real Chrome profile) | 2026-09-05 | Pass | user manual acceptance |
+| Real ChatGPT login | 2026-09-05 | Pass | user manual acceptance |
+| Model selection | 2026-09-05 | Pass | user manual acceptance; live GPT-5.6 catalog |
+| Real-video Digest | 2026-09-05 | Pass | user manual acceptance |
+| Remaining AI action | 2026-09-05 | Pass | user manual acceptance |
+| DeepSeek regression | 2026-09-05 | Pass | user manual acceptance |
+| Disconnect | 2026-09-05 | Pass | user manual acceptance |
+
+The manual rows record the user's own run on this Mac on 2026-09-05, reported as passed in full; the user confirmed the connection works for daily use. Defects found along the way — proxy-aware outbound (b83c2be), Keychain argv writes (3e4b52a), live model catalog (f44377a), dedicated models timeout (c7dc4b2), and save-order fix (d595c57) — are fixed and pushed to main.
 
 ## Boundaries this record certifies
 
