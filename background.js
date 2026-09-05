@@ -15,6 +15,7 @@
 // chrome.storage.local and are never part of the extension source.
 // The companion contract module carries the ChatGPT / Codex delegation.
 importScripts("settings.js", "companion.js");
+importScripts("markdown-export.js");
 
 const DEBUG = false;
 const AI_PROVIDER_IDLE_TIMEOUT_MS = 50_000;
@@ -500,6 +501,15 @@ chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
  * This is like a switchboard — different "actions" trigger different handlers.
  */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === "identifyExportSpeakers") {
+    if (sender.id !== chrome.runtime.id || sender.url?.split("?")[0] !== chrome.runtime.getURL("export.html")) {
+      sendResponse({ success: false, error: "请从视频文档保存窗口发起姓名识别。" });
+      return false;
+    }
+    handleIdentifyExportSpeakers(message).then(sendResponse)
+      .catch(() => sendResponse({ success: false, error: "姓名识别未完成，请重试。" }));
+    return true;
+  }
   // We need to return true to indicate we'll respond asynchronously
   if (message.action === "fetchTranscript") {
     handleFetchTranscript(message.videoId)
@@ -718,6 +728,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 duration: playerInfo.duration || response?.duration || 0,
                 description:
                   playerInfo.description || response?.description || "",
+                authors: playerInfo.authors?.length ? playerInfo.authors : response?.authors || [],
+                published: playerInfo.published || response?.published || "",
               };
             }
           }
@@ -756,13 +768,42 @@ async function getPlayerVideoDetails(tabId) {
       func: () => {
         try {
           const player = document.getElementById("movie_player");
-          const details = player?.getPlayerResponse?.()?.videoDetails;
+          const response = player?.getPlayerResponse?.();
+          const details = response?.videoDetails;
           if (!details) return null;
+          const videoId = new URL(location.href).searchParams.get("v");
+          // YouTube reuses this page on navigation. Never read the old player
+          // or the old owner card while the next video is loading.
+          if (!videoId || details.videoId !== videoId) return null;
+          const watch = document.querySelector("ytd-watch-flexy");
+          const owner = watch?.getAttribute("video-id") === videoId
+            ? watch.querySelector("ytd-watch-metadata ytd-video-owner-renderer")?.data : null;
+          // Read the full collaboration dialog, not the localized/truncated
+          // button label (which can say "X and 3 others"). Only channel entries
+          // count; subscription menus and names in descriptions are unrelated.
+          const items = owner?.navigationEndpoint?.showDialogCommand?.panelLoadingStrategy
+            ?.inlineContent?.dialogViewModel?.customContent?.listViewModel?.listItems || [];
+          const authors = [details.author];
+          for (const item of items) {
+            const title = item.listItemViewModel?.title;
+            if (title?.commandRuns?.some(run =>
+              run.onTap?.innertubeCommand?.browseEndpoint?.browseId?.startsWith("UC"))) {
+              authors.push(title.content);
+            }
+          }
+          const microformat = response.microformat?.playerMicroformatRenderer;
+          // Preserve YouTube's publication calendar day; converting to UTC
+          // can shift it. Do not infer an exact date from "2 months ago".
+          const published = [microformat?.publishDate, microformat?.uploadDate]
+            .map(value => String(value || "").match(/^\d{4}-\d{2}-\d{2}(?=$|T)/)?.[0] || "")
+            .find(value => value && !Number.isNaN(Date.parse(value))) || "";
           return {
             title: details.title || "",
             channelName: details.author || "",
             description: details.shortDescription || "",
             duration: Number(details.lengthSeconds) || 0,
+            authors: [...new Set(authors.filter(name => typeof name === "string" && name.trim()).map(name => name.trim()))],
+            published,
           };
         } catch (e) {
           return null;
@@ -889,6 +930,7 @@ async function handleFetchTranscript(videoId) {
           const timestamp = `${minutes}:${String(seconds).padStart(2, "0")}`;
 
           transcript.push({
+            rawText: chunk.text,
             text: cleanText,
             start: startSeconds,
             duration: Math.floor((chunk.duration || 0) / 1000),
@@ -976,6 +1018,7 @@ async function pollTranscriptJob(jobId, supadataApiKey) {
             const timestamp = `${minutes}:${String(seconds).padStart(2, "0")}`;
 
             transcript.push({
+              rawText: chunk.text,
               text: cleanText,
               start: startSeconds,
               duration: Math.floor((chunk.duration || 0) / 1000),
@@ -1044,6 +1087,27 @@ function parseLooseJson(text) {
     const repaired = cleaned.replace(/,(\s*[}\]])/g, "$1");
     return JSON.parse(repaired);
   }
+}
+
+async function handleIdentifyExportSpeakers(input) {
+  try {
+    const segments = input.segments;
+    if (!Array.isArray(segments) || !segments.length || segments.length > 60 ||
+        segments.some(s => !s || typeof s.id !== "string" || !/^s\d+$/.test(s.id) || typeof s.text !== "string" || !s.text.trim()) ||
+        new Set(segments.map(s => s.id)).size !== segments.length ||
+        segments.reduce((size, s) => size + s.text.length, 0) > 10000) {
+      return { success: false, error: "字幕批次无效或过长，请重新打开保存窗口。" };
+    }
+    const system = await loadPromptSection("speakers.md", "System");
+    const { text } = await requestAiCompletion({
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: JSON.stringify({ title: String(input.title || "").slice(0, 500), channel: String(input.author || "").slice(0, 200), openingContext: String(input.context || "").slice(0, 2000), segments }) },
+      ],
+      maxTokens: 8192, temperature: 0.1, responseFormat: { type: "json_object" },
+    });
+    return { success: true, speakers: YTD_MARKDOWN.validateSpeakers(parseLooseJson(text), segments) };
+  } catch (error) { return { success: false, error: error.message || "姓名识别失败，请重试或手动填写。" }; }
 }
 
 // ============================================================
@@ -1902,6 +1966,7 @@ async function callAiTranslation(
 
 // Pure validators are exposed for the repository's Node tests only.
 globalThis.__YTD_TRANSLATION_TESTING__ = {
+  handleIdentifyExportSpeakers,
   requestAiCompletion,
   callAiTranslation,
   validateTranscriptBatchRequest,

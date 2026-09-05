@@ -1,0 +1,50 @@
+:root { color-scheme: light; --bg:#f7f3ec; --surface:#fff; --ink:#2e2a24; --muted:#756c61; --line:#e7dfd2; --accent:#b9533d; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.6 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+main { max-width:820px; margin:auto; padding:32px 24px 64px; }
+header { margin:0 0 26px; }
+.eyebrow { color:var(--accent); font-size:11px; letter-spacing:.15em; font-weight:700; }
+h1 { font-size:30px; line-height:1.3; margin:8px 0; letter-spacing:-.03em; }
+h2 { font-size:18px; margin:0; } h3 { font-size:15px; }
+p { margin:8px 0 14px; }
+.muted { color:var(--muted); font-size:13px; }
+fieldset { border:0; margin:0; padding:0; min-width:0; }
+.card { background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:24px; margin:16px 0; }
+.section-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:16px; }
+.actions,.choices { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:12px 0; }
+button { background:#fff; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:8px 12px; font:inherit; font-size:13px; cursor:pointer; }
+button:hover { background:#f8f3ed; border-color:#c6b8a7; }
+button:disabled { opacity:.45; cursor:not-allowed; }
+button.primary { background:var(--accent); color:#fff; border-color:var(--accent); padding:12px 20px; font-weight:600; }
+button.primary:hover { background:#984532; }
+button[aria-pressed="true"] { border-color:var(--accent); color:var(--accent); background:#fdf0eb; }
+button:focus-visible,input:focus-visible,textarea:focus-visible { outline:3px solid #d58e72; outline-offset:2px; }
+label { display:block; font-size:13px; color:var(--muted); }
+input:not([type="checkbox"]),textarea { display:block; width:100%; font:inherit; font-size:14px; color:var(--ink); background:#fff; padding:10px 12px; border:1px solid var(--line); border-radius:8px; }
+input[type="checkbox"] { accent-color:var(--accent); }
+.check { display:flex; align-items:center; gap:8px; }
+.property { display:grid; grid-template-columns:110px 1fr; align-items:center; gap:16px; margin:10px 0; }
+.property label { overflow-wrap:anywhere; }
+textarea { resize:vertical; white-space:pre-wrap; }
+#preview { height:420px; min-height:240px; font:13px/1.8 ui-monospace,SFMono-Regular,monospace; background:#fcfaf6; }
+.badge { font-size:11px; color:var(--muted); border:1px solid var(--line); padding:3px 9px; border-radius:20px; }
+#status:not(:empty),.notice:not(:empty) { padding:12px 16px; background:#fff3dc; border:1px solid #efd5a5; border-radius:10px; white-space:pre-wrap; overflow-wrap:anywhere; }
+.error { color:#9a2e28; }
+#download { width:100%; margin-top:12px; }
+#saveFile { width:100%; margin-top:8px; }
+#filename { overflow-wrap:anywhere; }
+dialog { width:min(780px,calc(100% - 24px)); max-height:90vh; overflow:auto; border:1px solid var(--line); border-radius:16px; padding:28px; color:var(--ink); box-shadow:0 24px 70px #362b2430; }
+dialog::backdrop { background:#21170f66; }
+dialog label { margin:10px 0; }
+#confirmDialog { max-width:460px; }
+.template-property { display:grid; grid-template-columns:1fr 2fr; gap:6px 12px; padding:12px; background:var(--bg); border-radius:10px; margin:12px 0; }
+.template-property>label { margin:0; }
+.template-property>label:nth-of-type(2) { grid-column:2; grid-row:1; }
+.template-property .type-choices { grid-column:1 / -1; grid-row:2; }
+.template-property .actions { grid-column:1 / -1; margin:0; }
+.type-choices { display:flex; flex-wrap:wrap; gap:6px; }
+.speaker { border-top:1px solid var(--line); padding:16px 0; }
+.speaker blockquote { margin:8px 0; border-left:3px solid var(--line); padding:4px 12px; white-space:pre-wrap; max-height:130px; overflow:auto; font-size:13px; }
+.speaker details { font-size:13px; color:var(--muted); }
+[hidden] { display:none !important; }
+@media(max-width:560px) { main { padding:20px 12px 40px; } .card { padding:18px; } h1 { font-size:25px; } .section-heading { flex-wrap:wrap; gap:8px; } .property { grid-template-columns:84px 1fr; gap:8px; } dialog { padding:18px; } }

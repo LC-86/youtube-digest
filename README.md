@@ -23,6 +23,18 @@ YouTube Digest is a bring-your-own-key project installed locally from GitHub. It
 - Explain selected transcript text or save it directly as a timestamped note.
 - Keep your transcript position across navigation, with the panel closing automatically outside YouTube video pages.
 
+## Save a Markdown video document
+
+If Chrome rejects directory access as containing system files, choose an ordinary subfolder or use **另存为单个文件…** (Save a single file as). The native save dialog chooses the file location and confirms replacement without granting directory access or changing your default directory. Chrome still enforces protected-path restrictions.
+
+After fetching subtitles, use **保存 Markdown** in the transcript toolbar. A separate window fixes the current video's content while you choose a template, edit properties, preview Markdown, and choose a local folder. The folder can be remembered; Chrome may request access again. **下载 Markdown** writes directly to that folder, without the Chrome downloads list or a native companion. The file is named after the edited `title` plus `.md`; invalid filename characters are replaced and the actual name is shown. Existing files require confirmation before replacement.
+
+The document uses the extracted subtitles in their retrieved language, without timestamps or the panel's translations. Names and turn markers in the original captions are retained. Old cached captions can lack markers that earlier versions removed; the window reports this limitation. Optional speaker identification uses your selected AI provider and sends video metadata and subtitle batches. Suggestions include source excerpts, require your confirmation, and never replace the transcript text. You can edit or dismiss candidates, or add annotations manually. This is text-based inference, not voice identification.
+
+Manage multiple templates, edit and reorder typed properties, and import/export Web Clipper JSON through the save window or the settings link. Supported variables: `title`, `url`, `author`, `site`, `published`, `date`, `time`, `description`, `language`, `domain`, `content`; supported filter: `date:"YYYY-MM-DD"`. Keep a text `title` property and `{{content}}` in the body. List values accept one item per line or JSON arrays. Missing publication dates remain blank for manual entry.
+
+Import compatibility is explicit: selectors, prompt variables, template logic and other filters require edits before use. Original path, name, trigger, append/daily-note and Interpreter settings are not applied; conversion warnings require acknowledgment. Edited document properties and speaker annotations survive a refresh of the same save window. A new save action creates a separate draft. Browser session recovery may restore a previous window and its draft.
+
 ## Install with your coding agent
 
 You do not need to understand the code or use the command line. Send this message to your coding agent:

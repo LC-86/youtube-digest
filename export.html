@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>保存视频文档 · YouTube Digest</title>
+    <link rel="stylesheet" href="export.css" />
+  </head>
+  <body>
+    <main>
+      <header><p class="eyebrow">YOUTUBE DIGEST / 视频文档</p><h1>保存视频文档</h1><p id="sourceInfo" class="muted">正在读取视频字幕…</p></header>
+      <p id="status" role="status" aria-live="polite"></p>
+      <fieldset id="workspace" disabled>
+        <section class="card">
+          <div class="section-heading"><h2>保存模板</h2><button id="editTemplate" type="button">编辑模板</button></div>
+          <div id="templateChoices" class="choices" role="group" aria-label="选择保存模板"></div>
+          <div class="actions"><button id="newTemplate" type="button">新建</button><button id="duplicateTemplate" type="button">复制模板</button><button id="importTemplate" type="button">导入 JSON</button><button id="exportTemplate" type="button">导出模板</button><button id="deleteTemplate" type="button">删除模板</button></div>
+          <input id="templateFile" type="file" accept=".json,application/json" hidden />
+        </section>
+        <section class="card">
+          <h2>文档属性</h2><p class="muted">修改只应用于本次文档。要更改默认值，请编辑模板。</p>
+          <div id="properties"></div>
+        </section>
+        <section class="card">
+          <div class="section-heading"><h2>说话人</h2><button id="identifySpeakers" type="button">用模型识别姓名</button></div>
+          <p class="muted">保留字幕中已有的名字。识别会将视频信息和字幕发送给你设置的 AI 服务；候选姓名经你确认后才写入文档。</p>
+          <p id="speakerStatus" role="status"></p><div id="speakers"></div>
+          <button id="manualSpeaker" type="button">手动添加姓名标注</button>
+        </section>
+        <section class="card">
+          <div class="section-heading"><h2>正文预览</h2><span class="badge">原始字幕 · 无时间戳</span></div>
+          <p class="muted">以下显示将写入文件的 Markdown，包含文档属性和来源。</p>
+          <textarea id="preview" readonly aria-label="Markdown 文档预览" spellcheck="false"></textarea>
+        </section>
+        <footer class="card save-bar">
+          <div class="section-heading"><div><h2>保存到本地</h2><p id="directoryLabel">尚未选择目录</p></div><button id="chooseDirectory" type="button">选择目录</button></div>
+          <div class="actions"><label class="check"><input id="rememberDirectory" type="checkbox" />设为默认目录</label><button id="forgetDirectory" type="button">忘记默认目录</button></div>
+          <p class="muted">请选择存放笔记的子文件夹。Chrome 不允许授权整个“下载”“桌面”“文稿”或用户主目录；若提示“含有系统文件”，可另选子文件夹，或使用下方“另存为单个文件”。</p>
+          <p>文件名：<strong id="filename">—</strong></p><p id="filenameNotice" class="muted"></p>
+          <button id="download" class="primary" type="button" disabled>下载 Markdown</button>
+          <button id="saveFile" type="button" disabled>另存为单个文件…</button>
+          <p class="muted">另存为无需先授权目录，由系统窗口选择位置并确认同名覆盖；不会更改默认目录。</p>
+        </footer>
+      </fieldset>
+    </main>
+    <dialog id="templateDialog" aria-labelledby="templateHeading">
+      <form id="templateForm">
+        <div class="section-heading"><h2 id="templateHeading">编辑保存模板</h2><button id="cancelTemplate" type="button">取消</button></div>
+        <label>模板名称<input id="templateName" required maxlength="100" /></label>
+        <h3>属性默认值</h3><p class="muted">支持文本、列表、数字、复选框、日期和日期时间。title 文本属性决定文档标题和文件名。</p>
+        <div id="templateProperties"></div><button id="addProperty" type="button">添加属性</button>
+        <label>正文模板<textarea id="templateBody" rows="12" spellcheck="false"></textarea></label>
+        <p class="muted">变量：<code>{{title}} {{url}} {{author}} {{site}} {{published}} {{date}} {{time}} {{description}} {{language}} {{domain}} {{content}}</code>。日期过滤器：<code>{{date|date:"YYYY-MM-DD"}}</code>。{{content}} 为原始字幕。</p>
+        <p id="templateIssues" role="status" class="notice"></p>
+        <label id="ackLabel" class="check" hidden><input id="ackImport" type="checkbox" />我已了解以上兼容差异，保存转换后的模板</label>
+        <button id="saveTemplate" class="primary" type="submit">保存模板</button>
+      </form>
+    </dialog>
+    <dialog id="confirmDialog" aria-labelledby="confirmText"><form method="dialog"><p id="confirmText"></p><div class="actions"><button value="cancel">取消</button><button value="confirm" class="primary" id="confirmAction">确认</button></div></form></dialog>
+    <dialog id="manualDialog" aria-labelledby="manualHeading">
+      <form id="manualForm">
+        <div class="section-heading"><h2 id="manualHeading">标注一位说话人的发言</h2><button type="button" id="cancelManual">取消</button></div>
+        <p class="muted">选择连续的字幕段落，核对下方原文，再填写说话人的名字。</p>
+        <label>从第几段开始<input type="number" id="manualStart" min="1" value="1" required /></label>
+        <label>到第几段结束<input type="number" id="manualEnd" min="1" value="1" required /></label>
+        <label>对应原文<textarea id="manualExcerpt" rows="8" readonly></textarea></label>
+        <label>说话人姓名<input id="manualName" maxlength="100" required /></label>
+        <p id="manualError" class="error" role="status"></p>
+        <button class="primary" type="submit">加入待确认标注</button>
+      </form>
+    </dialog>
+    <script src="markdown-export.js"></script><script src="export-storage.js"></script><script src="export.js"></script>
+  </body>
+</html>

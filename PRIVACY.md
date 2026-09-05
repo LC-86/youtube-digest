@@ -52,6 +52,10 @@ When an AI feature runs through ChatGPT / Codex, the extension sends that featur
 
 ## Local storage and retention
 
+Markdown export templates are stored in Chrome's local extension storage. An optional default directory handle is stored in the extension's IndexedDB and is used only after you choose that directory. Use **忘记默认目录** in the export window to remove it. Resetting extension settings stops default-directory reuse; a leftover IndexedDB handle alone is not used. Export snapshots live in extension session storage until the save window reads them, then in that window's session storage together with property edits and speaker confirmations. The browser manages this session storage and may restore a draft when recovering a closed window or browser session. Exported Markdown files remain in your selected directory and are not removed by clearing extension data.
+
+Ordinary Markdown export makes no AI request. If you click **用模型识别姓名**, the current provider receives the video title, channel, opening subtitle context and subtitle batches to propose speaker names. Only annotations you confirm enter the document; original subtitle text is retained. Templates do not execute Web Clipper Interpreter prompts, selectors or scripts. No personal folder contents are sent to the AI provider.
+
 YouTube Digest uses Chrome's local extension storage, not a YouTube Digest cloud service.
 
 - Supadata and DeepSeek settings and API keys remain on the device in Chrome's extension storage.

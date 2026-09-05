@@ -337,6 +337,7 @@ test("retired Remix and reader files are absent", () => {
 
 test("published prompt files contain runtime sections", () => {
   const expectedSections = {
+    "prompts/speakers.md": ["System"],
     "prompts/analysis.md": ["System prompt", "User prompt"],
     "prompts/explain.md": ["System prompt", "User prompt"],
     "prompts/note-cleanup.md": ["System prompt", "User prompt"],

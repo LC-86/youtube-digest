@@ -23,6 +23,8 @@ let currentTranscriptTimestamped = null; // With timestamps for AI analysis
 let currentTranscriptLanguage = null;
 let currentVideoTitle = "";
 let currentChannelName = "";
+let currentVideoAuthors = [];
+let currentVideoPublished = "";
 let currentVideoDescription = "";
 let currentVideoDuration = 0;
 let isAnalysisLoading = false; // Track if analysis is in progress
@@ -421,6 +423,7 @@ function setupEventListeners() {
   document
     .getElementById("exportTranscriptBtn")
     ?.addEventListener("click", exportTranscript);
+  document.getElementById("exportMarkdownBtn")?.addEventListener("click", exportMarkdown);
   document.querySelectorAll(".transcript-mode-btn").forEach((button) => {
     button.addEventListener("click", () => {
       handleDisplayLanguageModeChange(button.dataset.transcriptMode);
@@ -502,6 +505,12 @@ async function checkCurrentTab() {
 
     if (videoId) {
       currentVideoUrl = tab.url;
+      currentVideoTitle = "";
+      currentChannelName = "";
+      currentVideoDescription = "";
+      currentVideoDuration = 0;
+      currentVideoAuthors = [];
+      currentVideoPublished = "";
 
       try {
         // Route through background script for reliable message passing
@@ -513,6 +522,8 @@ async function checkCurrentTab() {
         if (result.success && result.response) {
           currentVideoTitle = result.response.title || "";
           currentChannelName = result.response.channelName || "";
+          currentVideoAuthors = result.response.authors || [];
+          currentVideoPublished = result.response.published || "";
           currentVideoDescription = result.response.description || "";
           currentVideoDuration = result.response.duration || 0;
         }
@@ -1372,6 +1383,29 @@ function exportTranscript() {
 
   const filename = `${sanitizeFilename(currentVideoTitle)}-transcript.txt`;
   downloadTextFile(exportText, filename);
+}
+
+async function exportMarkdown() {
+  const button = document.getElementById("exportMarkdownBtn");
+  button.disabled = true;
+  const key = `ytd_markdown_draft_${crypto.randomUUID()}`;
+  try {
+    const source = YTD_MARKDOWN.snapshot({
+      title: currentVideoTitle, author: currentChannelName,
+      authors: currentVideoAuthors, published: currentVideoPublished,
+      url: YTD_SETTINGS.canonicalYouTubeUrl(currentVideoId),
+      description: currentVideoDescription, language: currentTranscriptLanguage,
+      transcript: currentTranscript, transcriptText: currentTranscriptText,
+    });
+    await chrome.storage.session.set({ [key]: source });
+    await chrome.windows.create({
+      url: chrome.runtime.getURL(`export.html?draft=${key.slice("ytd_markdown_draft_".length)}`),
+      type: "popup", width: 840, height: 900,
+    });
+  } catch (error) {
+    await chrome.storage.session.remove(key).catch(() => {});
+    alert(`无法打开保存窗口：${error.message}`);
+  } finally { button.disabled = false; }
 }
 
 // ============================================================

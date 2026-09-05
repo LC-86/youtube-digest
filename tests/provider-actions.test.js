@@ -54,6 +54,7 @@ function loadBackground({
   const localStorage = { ytd_settings: settings, ...storage };
   const deepSeekRequests = [];
   let currentDeepSeekText = deepSeekText;
+  let messageHandler;
   const listeners = { addListener() {} };
   const sandbox = {
     console,
@@ -97,8 +98,9 @@ function loadBackground({
         setOptions: () => Promise.resolve(),
       },
       runtime: {
+        id: "test",
         onInstalled: listeners,
-        onMessage: listeners,
+        onMessage: { addListener(handler) { messageHandler = handler; } },
         openOptionsPage() {},
         getURL: (resourcePath) => `chrome-extension://test/${resourcePath}`,
         sendMessage: () => Promise.resolve({ success: true }),
@@ -108,10 +110,11 @@ function loadBackground({
     },
   };
   sandbox.globalThis = sandbox;
-  for (const file of ["settings.js", "companion.js", "background.js"]) {
+  for (const file of ["settings.js", "companion.js", "markdown-export.js", "background.js"]) {
     vm.runInNewContext(read(file), sandbox, { filename: file });
   }
   return {
+    dispatch: (message, sender) => new Promise(resolve => messageHandler(message, sender, resolve)),
     background: sandbox.__YTD_TRANSLATION_TESTING__,
     deepSeekRequests,
     setSettings(nextSettings) {
@@ -161,6 +164,17 @@ const polishReply = JSON.stringify({ quote: "A polished model sentence." });
 // handler exactly as the side panel's messages do; `sentinel` is text that
 // reaches the provider prompt but must never reach a failure message.
 const ACTIONS = {
+  speakers: {
+    sentinel: "Hello, I am Alice.",
+    providerText: JSON.stringify({ speakers: [{ startId: "s0", endId: "s0", name: "Alice", evidence: "I am Alice." }] }),
+    maxTokens: 8192,
+    run: background => background.handleIdentifyExportSpeakers({ segments: [{ id: "s0", text: "Hello, I am Alice." }], title: "Conversation", author: "Channel", context: "" }),
+    assertSuccess(result) {
+      assert.equal(result.success, true);
+      assert.equal(result.speakers[0].name, "Alice");
+      assert.equal(result.speakers[0].confirmed, false);
+    },
+  },
   digest: {
     sentinel: DIGEST_SENTINEL,
     providerText: digestReply,
@@ -274,6 +288,21 @@ test("every AI action completes through the selected Codex model", async () => {
       `${name} must not touch the DeepSeek endpoint under Codex`,
     );
   }
+});
+
+test("speaker inference is available only to the extension save page", async () => {
+  const harness = loadBackground({ settings: deepSeekSettings(), deepSeekText: ACTIONS.speakers.providerText });
+  const message = { action: "identifyExportSpeakers", segments: [{ id: "s0", text: "Hello, I am Alice." }] };
+  for (const sender of [{ id: "test", url: "https://www.youtube.com/watch?v=example" }, { id: "other", url: "chrome-extension://test/export.html" }]) {
+    assert.equal((await harness.dispatch(message, sender)).success, false);
+  }
+  assert.equal(harness.deepSeekRequests.length, 0);
+  const good = await harness.dispatch(message, { id: "test", url: "chrome-extension://test/export.html?draft=example" });
+  ACTIONS.speakers.assertSuccess(good);
+  assert.equal(harness.deepSeekRequests.length, 1);
+  const invalid = await harness.background.handleIdentifyExportSpeakers({ segments: [{ id: "bad", text: "Hello" }] });
+  assert.equal(invalid.success, false);
+  assert.equal(harness.deepSeekRequests.length, 1, "invalid input must not spend a model request");
 });
 
 test("every AI action stays on the DeepSeek path when DeepSeek is selected", async () => {
