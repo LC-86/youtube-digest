@@ -15,6 +15,8 @@ explainer-video/
 skills/
 skills-lock.json
 .playwright-mcp/
+.v2c/plugin_root
+.video_agent/plugin_root
 node_modules/
 dist/
 
